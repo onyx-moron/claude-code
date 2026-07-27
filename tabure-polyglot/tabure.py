@@ -480,10 +480,44 @@ def revisar(modelo, ignorar=" -"):
             else:
                 vistos_roman[r] = g
 
-        if f["reemplazo"] and f["reemplazo"] == g:
-            h.append(Hallazgo(AVISO, "fonología",
-                              "El reemplazo de «%s» es idéntico al grafema (bucle o regla inútil)" % g,
+    # ---- Teclas de sustitución -------------------------------------------
+    # PolyGlot solo admite UN carácter como entrada de sustitución, así que
+    # cada grafema no tecleable necesita una tecla propia y sin choques.
+    inventario = set(f["grafema"] for f in modelo["fonologia"])
+    vistas_tecla = {}
+    for f in modelo["fonologia"]:
+        g, tecla = f["grafema"], f["reemplazo"]
+        if not tecla:
+            if any(ord(c) > 126 for c in g):
+                h.append(Hallazgo(AVISO, "teclas",
+                                  "«%s» no se teclea directamente y no tiene tecla asignada" % g,
+                                  f["origen"]))
+            continue
+
+        if len(tecla) > 1:
+            h.append(Hallazgo(ERROR, "teclas",
+                              "La tecla de «%s» es «%s»: PolyGlot solo admite un carácter de entrada"
+                              % (g, tecla), f["origen"]))
+
+        if tecla in vistas_tecla:
+            h.append(Hallazgo(ERROR, "teclas",
+                              "Tecla repetida «%s»: la usan «%s» y «%s»"
+                              % (tecla, vistas_tecla[tecla], g), f["origen"]))
+        else:
+            vistas_tecla[tecla] = g
+
+        if tecla in inventario:
+            h.append(Hallazgo(ERROR, "teclas",
+                              "La tecla «%s» es también un grafema de la lengua: se sustituiría sola" % tecla,
                               f["origen"]))
+
+    for tecla, duenio in sorted(vistas_tecla.items()):
+        afectadas = [l["palabra"] for l in modelo["lexemas"] if tecla in l["palabra"]]
+        if afectadas:
+            muestra = ", ".join(afectadas[:3]) + ("…" if len(afectadas) > 3 else "")
+            h.append(Hallazgo(ERROR, "teclas",
+                              "La tecla «%s» (de «%s») aparece dentro de palabras del léxico (%s): "
+                              "al teclearlas se sustituiría" % (tecla, duenio, muestra)))
 
     # ---- Cobertura: caracteres usados vs. inventario ---------------------
     grafemas = [f["grafema"] for f in modelo["fonologia"]]

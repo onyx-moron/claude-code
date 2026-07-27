@@ -98,9 +98,14 @@ tipo: fonologia
 
 | Grafema | IPA | Romanización | Reemplazo | Notas |
 |---|---|---|---|---|
+| č | tʃ | ch | 1 | se escribe tecleando 1 |
 | sh | ʃ | sh |  | dígrafo |
 | ' | ʔ | ' |  | oclusiva glotal |
 ```
+
+La columna **Reemplazo** es la *tecla de sustitución* de PolyGlot, que solo admite
+**un carácter de entrada**: al teclear `1` aparece `č`. Se deja vacía en los
+grafemas que ya se escriben directamente con el teclado.
 
 ### Una regla de conjugación — `Conjugaciones/pasado.md`
 
@@ -148,7 +153,20 @@ El cuerpo de la sección, en Markdown normal.
 ## Qué valida `revisar`
 
 **Fonología** — grafemas duplicados; romanizaciones ambiguas (dos grafemas que se
-transcriben igual); grafemas sin IPA; reglas de reemplazo que no reemplazan nada.
+transcriben igual); grafemas sin IPA.
+
+**Teclas de sustitución** — como PolyGlot solo acepta un carácter de entrada, aquí
+se concentran los fallos que rompen la escritura sin avisar: teclas de más de un
+carácter; dos grafemas peleándose la misma tecla; una tecla que también es un
+grafema real de la lengua (se sustituiría sola); y el más traicionero, una tecla que
+aparece dentro de una palabra del léxico, que haría imposible teclear esa palabra.
+También avisa de grafemas no tecleables que se quedaron sin tecla asignada.
+
+```
+ERROR  teclas       Tecla repetida «1»: la usan «š» y «ž»
+ERROR  teclas       La tecla «1» (de «š») aparece dentro de palabras del léxico
+                    (ta1ma): al teclearlas se sustituiría
+```
 
 **Cobertura** — el chequeo más útil: segmenta cada palabra del léxico contra el
 inventario y reporta cualquier carácter que uses en una palabra pero no hayas
