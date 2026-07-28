@@ -36,6 +36,7 @@ lector de frontmatter y funciona igual.
 |---|---|
 | `extraer` | Saca todo el contenido de tu `.pgd` al formato del cuaderno. Solo lectura. |
 | `revisar` | Valida el vault y muestra errores y avisos. No escribe nada. |
+| `probar` | Aplica cada regla de conjugación al léxico real y muestra qué produce. |
 | `exportar` | Valida y genera los archivos para PolyGlot. |
 | `vigilar` | Repite `exportar` automáticamente cada vez que guardas una nota. |
 | `inspeccionar` | Describe la estructura interna de tu archivo `.pgd`. Solo lectura. |
@@ -219,6 +220,21 @@ AVISO  conjugación  «Prueba que falla» no está anclada (sin ^ ni $)
 ```
 
 **Gramática** — secciones vacías, números de orden repetidos.
+
+## Ensayar las reglas contra el léxico
+
+Una regla puede compilar sin error y aun así no hacer nada, o hacer algo distinto de
+lo que crees. `probar` la aplica a las palabras reales de su categoría y clasifica el
+resultado en **activa** (modifica palabras), **inerte** (no cambia ninguna, casi
+siempre síntoma de un patrón mal escrito), **error** (la regex no compila) y **sin
+léxico** (su categoría está vacía).
+
+```bash
+python3 tabure.py probar --vault ~/Obsidian/Tabure
+```
+
+Las transformaciones que estén bien conviértelas en casos de prueba: a partir de ahí,
+si cambias la fonología o reescribes la regla, `revisar` te avisa si dejó de funcionar.
 
 `revisar` y `exportar` salen con código 1 si hay errores, así que puedes encadenarlos
 en un script.

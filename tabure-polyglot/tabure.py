@@ -1260,6 +1260,73 @@ def cmd_vigilar(args):
         return 0
 
 
+def cmd_probar(args):
+    """Aplica cada regla a las palabras reales de su categoría y muestra el efecto."""
+    modelo, hallazgos = cargar_vault(args.vault)
+    if not modelo["reglas"]:
+        print(ambar("No hay reglas de conjugación en el vault."))
+        return 0
+
+    resumen = {"activa": 0, "inerte": 0, "error": 0, "sin-lexico": 0}
+    print(negrita("\nEnsayo de %d regla(s) contra %d lexema(s)\n"
+                  % (len(modelo["reglas"]), len(modelo["lexemas"]))))
+
+    for r in modelo["reglas"]:
+        if r["pos"]:
+            objetivo = r["pos"].strip().lower()
+            candidatos = [l for l in modelo["lexemas"]
+                          if l["pos"].strip().lower() == objetivo]
+        else:
+            candidatos = modelo["lexemas"]
+
+        error, muestras, afectadas = None, [], 0
+        for lex in candidatos:
+            ok, salida = aplicar_regla(r, lex["palabra"])
+            if not ok:
+                error = salida
+                break
+            if salida != lex["palabra"]:
+                afectadas += 1
+                if len(muestras) < args.muestras:
+                    muestras.append((lex["palabra"], salida))
+
+        if error:
+            estado, color = "error", rojo
+        elif not candidatos:
+            estado, color = "sin-lexico", gris
+        elif afectadas == 0:
+            estado, color = "inerte", ambar
+        else:
+            estado, color = "activa", verde
+        resumen[estado] += 1
+
+        cabecera = "  %s  %s" % (color("%-11s" % estado), r["etiqueta"])
+        if r["pos"]:
+            cabecera += gris(" · " + r["pos"])
+        print(cabecera)
+        print(gris("      /%s/ → \"%s\"" % (r["buscar"], r["reemplazar"])))
+        if error:
+            print("      " + rojo(error))
+        elif estado == "inerte":
+            print(gris("      ninguna de las %d palabras de su categoría cambia" % len(candidatos)))
+        elif estado == "sin-lexico":
+            print(gris("      su categoría no tiene palabras"))
+        else:
+            for entrada, salida in muestras:
+                print("      %s → %s" % (entrada, salida))
+            print(gris("      afecta a %d de %d" % (afectadas, len(candidatos))))
+        print("")
+
+    print(negrita("Resumen: ") +
+          "%s activas · %s inertes · %s con error · %s sin léxico" % (
+              verde(str(resumen["activa"])),
+              ambar(str(resumen["inerte"])) if resumen["inerte"] else "0",
+              rojo(str(resumen["error"])) if resumen["error"] else "0",
+              resumen["sin-lexico"]))
+    print(gris("Una regla inerte o con error no hace lo que crees: revísala antes de aplicarla en PolyGlot.\n"))
+    return 1 if resumen["error"] else 0
+
+
 def cmd_inspeccionar(args):
     return inspeccionar_pgd(args.pgd, args.salida)
 
@@ -1294,6 +1361,11 @@ def main(argv=None):
     sp.add_argument("--salida", required=True, help="Carpeta donde escribir los archivos")
     sp.add_argument("--intervalo", type=float, default=2.0, help="Segundos entre revisiones")
     sp.set_defaults(func=cmd_vigilar)
+
+    sp = sub.add_parser("probar", help="Aplica cada regla al léxico real y muestra qué produce")
+    con_vault(sp)
+    sp.add_argument("--muestras", type=int, default=4, help="Ejemplos a mostrar por regla")
+    sp.set_defaults(func=cmd_probar)
 
     sp = sub.add_parser("extraer", help="Saca el contenido de un .pgd al formato del cuaderno (solo lectura)")
     sp.add_argument("--pgd", required=True, help="Ruta al archivo .pgd de PolyGlot")
