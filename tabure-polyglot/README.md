@@ -34,11 +34,39 @@ lector de frontmatter y funciona igual.
 
 | Comando | Qué hace |
 |---|---|
+| `extraer` | Saca todo el contenido de tu `.pgd` al formato del cuaderno. Solo lectura. |
 | `revisar` | Valida el vault y muestra errores y avisos. No escribe nada. |
 | `exportar` | Valida y genera los archivos para PolyGlot. |
 | `vigilar` | Repite `exportar` automáticamente cada vez que guardas una nota. |
 | `inspeccionar` | Describe la estructura interna de tu archivo `.pgd`. Solo lectura. |
 | `importar-cuaderno` | Convierte el respaldo JSON del cuaderno web en notas del vault. |
+
+### Sacar lo que ya tienes en PolyGlot
+
+Si tu diccionario ya tiene trabajo hecho, este es el punto de partida: no hay que
+volver a escribir nada.
+
+```bash
+python3 tabure.py extraer --pgd ~/Tabure/Tabure.pgd --salida ~/Desktop/paquete.json
+```
+
+Lee el `.pgd` **sin modificarlo** y produce un JSON con la fonología (grafema, AFI,
+romanización y tecla de sustitución), el léxico, las categorías con sus dimensiones,
+las reglas de conjugación y las secciones de gramática. Ese JSON se pega en el
+cuaderno web con **Actualizar**.
+
+De dónde sale cada dato:
+
+| En el cuaderno | En PolyGlot |
+|---|---|
+| Grafema y AFI | Guía de pronunciación (`proGuide`) |
+| Romanización | Guía de romanización (`romGuide`) |
+| Tecla de sustitución | Sustitución de caracteres (`langPropCharRep`) |
+| Dimensiones de una categoría | Declinaciones enlazadas a esa categoría |
+| Reglas de conjugación | Cada transformación del generador, por separado |
+
+Verificado contra PolyGlot 3.6.1. Si tu versión guarda las cosas con otros nombres,
+`inspeccionar` te lo dirá.
 
 ### Empezar desde el cuaderno web
 

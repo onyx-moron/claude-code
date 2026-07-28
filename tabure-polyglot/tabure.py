@@ -721,6 +721,222 @@ def exportar(modelo, hallazgos, salida):
 
 
 # --------------------------------------------------------------------------
+# Extracción del .pgd de PolyGlot (solo lectura)
+# --------------------------------------------------------------------------
+#
+# Esquema verificado contra PolyGlot 3.6.1. Los nombres de etiqueta salen de
+# `inspeccionar`; si tu versión difiere, vuelve a correrlo y compara.
+
+_RE_ETIQUETAS = re.compile(r"<[^>]+>")
+_ENTIDADES = [("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"),
+              ("&gt;", ">"), ("&quot;", '"'), ("&#39;", "'")]
+
+
+def _texto_plano(bruto):
+    """Las notas de PolyGlot vienen envueltas en HTML; deja solo el texto."""
+    if not bruto:
+        return ""
+    limpio = re.sub(r"(?is)<(script|style|head)[^>]*>.*?</\1>", " ", bruto)
+    limpio = re.sub(r"(?i)<br\s*/?>", "\n", limpio)
+    limpio = re.sub(r"(?i)</p\s*>", "\n", limpio)
+    limpio = _RE_ETIQUETAS.sub("", limpio)
+    for entidad, valor in _ENTIDADES:
+        limpio = limpio.replace(entidad, valor)
+    limpio = re.sub(r"[ \t]+", " ", limpio)
+    limpio = re.sub(r"\n\s*\n\s*\n+", "\n\n", limpio)
+    return limpio.strip()
+
+
+def _sin_barras(texto):
+    """PolyGlot guarda los fonemas como /b/; aquí interesa la b."""
+    return (texto or "").replace("/", "").strip()
+
+
+def _hijo(nodo, etiqueta, defecto=""):
+    hijo = nodo.find(etiqueta)
+    return (hijo.text or defecto) if hijo is not None and hijo.text is not None else defecto
+
+
+def _abrir_xml(ruta_pgd):
+    """Devuelve la raíz del PGDictionary.xml, sin modificar el archivo."""
+    import xml.etree.ElementTree as ET
+    if zipfile.is_zipfile(ruta_pgd):
+        with zipfile.ZipFile(ruta_pgd) as z:
+            candidatos = [n for n in z.namelist()
+                          if n.lower().endswith(".xml") and not n.startswith("reversion/")]
+            if not candidatos:
+                raise ValueError("El .pgd no contiene ningún XML principal")
+            crudo = z.read(candidatos[0])
+    else:
+        with open(ruta_pgd, "rb") as fh:
+            crudo = fh.read()
+    return ET.fromstring(crudo)
+
+
+def extraer_pgd(ruta_pgd):
+    """Convierte el contenido del .pgd al formato de paquete del cuaderno."""
+    raiz = _abrir_xml(ruta_pgd)
+    paquete = {}
+    avisos = []
+
+    # ---- Categorías gramaticales, y el mapa id -> nombre para el léxico ----
+    nombre_pos = {}
+    lista_pos = []
+    for nodo in raiz.findall("./partsOfSpeech/partOfSpeechNode"):
+        pos_id = _hijo(nodo, "partOfSpeechId")
+        nombre = _hijo(nodo, "partOfSpeechName")
+        if not nombre:
+            continue
+        nombre_pos[pos_id] = nombre
+        lista_pos.append({"name": nombre, "dims": [],
+                          "notes": _texto_plano(_hijo(nodo, "partOfSpeechNotes")),
+                          "status": "draft"})
+
+    # Las dimensiones viven en declensionNode, enlazadas por declensionRelatedId.
+    for nodo in raiz.findall("./declensionCollection/declensionNode"):
+        rel = _hijo(nodo, "declensionRelatedId")
+        dims = [_hijo(d, "dimensionName") for d in nodo.findall("./dimensionNode")]
+        dims = [d for d in dims if d]
+        destino = nombre_pos.get(rel)
+        if destino and dims:
+            for p in lista_pos:
+                if p["name"] == destino:
+                    for d in dims:
+                        if d not in p["dims"]:
+                            p["dims"].append(d)
+    if lista_pos:
+        paquete["pos"] = lista_pos
+
+    # ---- Fonología: pronunciación + romanización + teclas ------------------
+    # proGuide da grafema -> fonema; romGuide da grafema -> romanización;
+    # langPropCharRep da tecla -> grafema (ojo, en ese sentido).
+    romanizacion = {}
+    for nodo in raiz.findall("./romGuide/romGuideNode"):
+        base = _sin_barras(_hijo(nodo, "romGuideBase"))
+        if base:
+            romanizacion[base] = _hijo(nodo, "romGuidePhon")
+
+    tecla_de = {}
+    for nodo in raiz.findall("./languageProperties/langPropCharRep/langPropCharRepNode"):
+        tecla = _hijo(nodo, "langPropCharRepCharacter")
+        grafema = _hijo(nodo, "langPropCharRepValue")
+        if grafema:
+            tecla_de[grafema] = tecla
+
+    fonologia, vistos = [], set()
+    for nodo in raiz.findall("./pronunciationCollection/proGuide"):
+        base = _hijo(nodo, "proGuideBase")
+        if not base or base in vistos:
+            continue
+        vistos.add(base)
+        fonologia.append({
+            "char": base,
+            "ipa": _sin_barras(_hijo(nodo, "proGuidePhon")),
+            "roman": romanizacion.get(base, ""),
+            "replacement": tecla_de.get(base, ""),
+            "notes": ""
+        })
+    # Grafemas que solo aparecen en las sustituciones de teclado.
+    for grafema, tecla in tecla_de.items():
+        if grafema not in vistos:
+            vistos.add(grafema)
+            fonologia.append({"char": grafema, "ipa": "",
+                              "roman": romanizacion.get(grafema, ""),
+                              "replacement": tecla, "notes": ""})
+    if fonologia:
+        paquete["phonology"] = fonologia
+
+    sin_pareja = [b for b in romanizacion if b not in vistos]
+    if sin_pareja:
+        avisos.append("%d regla(s) de romanización no casan con ningún grafema del "
+                      "guion de pronunciación: %s" % (len(sin_pareja), " ".join(sorted(sin_pareja)[:8])))
+
+    # ---- Léxico ------------------------------------------------------------
+    lexico = []
+    for nodo in raiz.findall("./lexicon/word"):
+        palabra = _hijo(nodo, "conWord")
+        if not palabra:
+            continue
+        lexico.append({
+            "headword": palabra,
+            "ipa": _sin_barras(_hijo(nodo, "pronunciation")),
+            "roman": "",
+            "pos": nombre_pos.get(_hijo(nodo, "wordPosId"), ""),
+            "gloss": _hijo(nodo, "localWord"),
+            "etymology": _texto_plano(_hijo(nodo, "wordEtymologyNotes")),
+            "status": "verified"
+        })
+    if lexico:
+        paquete["lexicon"] = lexico
+
+    # ---- Reglas de conjugación --------------------------------------------
+    reglas = []
+    for nodo in raiz.findall("./declensionCollection/decGenRule"):
+        etiqueta = _hijo(nodo, "decGenRuleName")
+        pos = nombre_pos.get(_hijo(nodo, "decGenRuleTypeId"), "")
+        transformaciones = nodo.findall("./decGenTrans")
+        for i, trans in enumerate(transformaciones, start=1):
+            buscar = _hijo(trans, "decGenTransRegex")
+            if not buscar:
+                continue
+            sufijo = "" if len(transformaciones) == 1 else " (%d)" % i
+            reglas.append({
+                "label": (etiqueta or "Regla sin nombre") + sufijo,
+                "pos": pos,
+                "find": buscar,
+                "replace": _hijo(trans, "decGenTransReplace"),
+                "flags": "",
+                "tests": []
+            })
+    if reglas:
+        paquete["rules"] = reglas
+
+    # ---- Gramática ---------------------------------------------------------
+    gramatica = []
+    for capitulo in raiz.findall("./grammarCollection/grammarChapterNode"):
+        nombre_cap = _hijo(capitulo, "grammarChapterName")
+        for seccion in capitulo.findall("./grammarSectionsList/grammarSectionNode"):
+            titulo = _hijo(seccion, "grammarSectionName") or nombre_cap
+            gramatica.append({
+                "title": titulo,
+                "content": _texto_plano(_hijo(seccion, "grammarSectionText"))
+            })
+    if gramatica:
+        paquete["grammar"] = gramatica
+
+    return paquete, avisos
+
+
+def cmd_extraer(args):
+    try:
+        paquete, avisos = extraer_pgd(args.pgd)
+    except (IOError, OSError, ValueError) as exc:
+        print(rojo("No se pudo leer el .pgd: %s" % exc))
+        return 1
+    except Exception as exc:                      # XML corrupto o esquema distinto
+        print(rojo("No se pudo interpretar el .pgd: %s" % exc))
+        print(gris("Corre `inspeccionar` sobre el mismo archivo y comparte la salida."))
+        return 1
+
+    texto = json.dumps(paquete, ensure_ascii=False, indent=2)
+    with io.open(args.salida, "w", encoding="utf-8") as fh:
+        fh.write(texto)
+
+    print(negrita("\nExtraído de %s" % os.path.basename(args.pgd)))
+    for clave in ("phonology", "lexicon", "pos", "rules", "grammar"):
+        if clave in paquete:
+            print("  %-11s %d" % (clave, len(paquete[clave])))
+    for a in avisos:
+        print(ambar("  AVISO  ") + a)
+    print("")
+    print(verde("Guardado en %s" % os.path.abspath(args.salida)))
+    print(gris("Ábrelo, copia todo el contenido y pégalo en el cuaderno → "
+               "Copia de seguridad → Traer novedades → Actualizar."))
+    print(gris("El .pgd no se ha modificado."))
+    return 0
+
+
+# --------------------------------------------------------------------------
 # Inspección del archivo .pgd de PolyGlot
 # --------------------------------------------------------------------------
 
@@ -1060,6 +1276,11 @@ def main(argv=None):
     sp.add_argument("--salida", required=True, help="Carpeta donde escribir los archivos")
     sp.add_argument("--intervalo", type=float, default=2.0, help="Segundos entre revisiones")
     sp.set_defaults(func=cmd_vigilar)
+
+    sp = sub.add_parser("extraer", help="Saca el contenido de un .pgd al formato del cuaderno (solo lectura)")
+    sp.add_argument("--pgd", required=True, help="Ruta al archivo .pgd de PolyGlot")
+    sp.add_argument("--salida", default="paquete.json", help="Archivo JSON a escribir")
+    sp.set_defaults(func=cmd_extraer)
 
     sp = sub.add_parser("inspeccionar", help="Describe la estructura real de un archivo .pgd")
     sp.add_argument("--pgd", required=True, help="Ruta al archivo .pgd de PolyGlot")
