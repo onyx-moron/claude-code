@@ -1312,6 +1312,14 @@ def main(argv=None):
     sp.set_defaults(func=cmd_importar)
 
     args = p.parse_args(argv)
+
+    # El shell expande ~ solo si va fuera de comillas; hacerlo aquí también
+    # evita que una ruta entrecomillada falle con un "no existe el archivo".
+    for campo in ("vault", "salida", "pgd", "json"):
+        valor = getattr(args, campo, None)
+        if isinstance(valor, str) and valor.startswith("~"):
+            setattr(args, campo, os.path.expanduser(valor))
+
     if not getattr(args, "func", None):
         p.print_help()
         return 0
