@@ -1,0 +1,679 @@
+<title>Tabure · Producción de glifos en FontForge</title>
+<style>
+  :root {
+    color-scheme: light;
+    --papel:     #E6E7E2;
+    --sup:       #F2F2EE;
+    --sup2:      #DBDCD5;
+    --linea:     #C6C8BF;
+    --tinta:     #15171B;
+    --tinta-s:   #4E5359;
+    --tinta-f:   #7C8189;
+    --azul:      #2E43C8;
+    --azul-w:    #DDE0F6;
+    --rojo:      #B03A3A;
+    --ambar:     #8F6A12;
+    --foco:      #2E43C8;
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", "Hoefler Text", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --muestra: var(--serif);
+
+    --r: 3px;
+    --sombra: 0 1px 0 rgba(21,23,27,.05), 0 10px 26px -20px rgba(21,23,27,.6);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --papel:   #131418;
+      --sup:     #1B1D22;
+      --sup2:    #23262C;
+      --linea:   #33373E;
+      --tinta:   #E3E4E0;
+      --tinta-s: #A6ABB2;
+      --tinta-f: #787D85;
+      --azul:    #8FA0FF;
+      --azul-w:  #1E2233;
+      --rojo:    #E08078;
+      --ambar:   #D2A745;
+      --foco:    #8FA0FF;
+      --sombra: 0 1px 0 rgba(0,0,0,.35), 0 12px 28px -20px #000;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --papel:   #131418; --sup: #1B1D22; --sup2: #23262C; --linea: #33373E;
+    --tinta:   #E3E4E0; --tinta-s: #A6ABB2; --tinta-f: #787D85;
+    --azul:    #8FA0FF; --azul-w: #1E2233; --rojo: #E08078; --ambar: #D2A745; --foco: #8FA0FF;
+    --sombra: 0 1px 0 rgba(0,0,0,.35), 0 12px 28px -20px #000;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --papel: #E6E7E2; --sup: #F2F2EE; --sup2: #DBDCD5; --linea: #C6C8BF;
+    --tinta: #15171B; --tinta-s: #4E5359; --tinta-f: #7C8189;
+    --azul: #2E43C8; --azul-w: #DDE0F6; --rojo: #B03A3A; --ambar: #8F6A12; --foco: #2E43C8;
+    --sombra: 0 1px 0 rgba(21,23,27,.05), 0 10px 26px -20px rgba(21,23,27,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--papel); color: var(--tinta);
+    font-family: var(--sans); font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; border-radius: 2px; }
+
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 26px 22px 80px; display: flex; flex-direction: column; gap: 26px; }
+
+  /* cabecera */
+  .cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px; border-bottom: 2px solid var(--tinta); padding-bottom: 14px; }
+  .cab h1 { font-family: var(--serif); font-size: clamp(28px, 4vw, 42px); font-weight: 600; letter-spacing: -.015em; line-height: 1.05; margin: 0; text-wrap: balance; }
+  .ceja { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--tinta-f); margin: 0 0 6px; }
+  .cab p.sub { margin: 6px 0 0; color: var(--tinta-s); max-width: 60ch; }
+  .acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  button, select, input, textarea { font: inherit; color: inherit; }
+  .btn { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); padding: 7px 13px; cursor: pointer; font-size: 13.5px; transition: background .12s ease, border-color .12s ease; }
+  .btn:hover { background: var(--sup2); border-color: var(--tinta-f); }
+  .btn.primaria { background: var(--azul); border-color: var(--azul); color: var(--papel); font-weight: 600; }
+  .btn.primaria:hover { filter: brightness(1.1); }
+  .btn.silencio { background: transparent; }
+  input[type="text"], input[type="number"], select, textarea {
+    background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); padding: 7px 9px; width: 100%;
+  }
+  textarea { resize: vertical; min-height: 60px; line-height: 1.45; }
+
+  /* espécimen */
+  .especimen { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); box-shadow: var(--sombra); overflow: hidden; }
+  .especimen .linea {
+    font-family: var(--muestra);
+    font-size: 64px; line-height: 1.18; padding: 22px 20px; margin: 0;
+    word-break: break-word; text-wrap: balance;
+  }
+  .especimen .ctrl { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 11px 15px; border-top: 1px solid var(--linea); background: var(--sup2); }
+  @media (max-width: 640px) { .especimen .ctrl { grid-template-columns: 1fr; } }
+  .ctrl label.rango { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--tinta-s); white-space: nowrap; }
+  .ctrl input[type="range"] { width: 150px; accent-color: var(--azul); }
+  .fuente-estado { font-family: var(--mono); font-size: 11.5px; color: var(--tinta-f); }
+
+  /* indicadores */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: var(--r); overflow: hidden; }
+  .kpi { background: var(--sup); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+  .kpi .rot { font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--tinta-f); }
+  .kpi .val { font-family: var(--serif); font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi .val small { font-size: 14px; color: var(--tinta-f); font-family: var(--sans); }
+  .kpi.aviso .val { color: var(--rojo); }
+
+  h2.tit { font-family: var(--serif); font-size: 18px; font-weight: 600; margin: 0; }
+  .bloque { display: flex; flex-direction: column; gap: 11px; }
+
+  .pista { display: flex; height: 24px; border: 1px solid var(--linea); border-radius: var(--r); overflow: hidden; background: var(--sup); }
+  .pista span { display: block; min-width: 2px; }
+  .leyenda { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--tinta-s); }
+  .leyenda div { display: flex; align-items: center; gap: 6px; }
+  .leyenda i { width: 10px; height: 10px; border-radius: 2px; }
+  .leyenda b { font-variant-numeric: tabular-nums; color: var(--tinta); font-weight: 600; }
+
+  /* consola */
+  .consola { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 940px) { .consola { grid-template-columns: minmax(0, 1fr); } }
+
+  .casillero, .ficha, .guia { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); box-shadow: var(--sombra); }
+  .casillero > header, .ficha > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
+  .filtros { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 11px 15px; border-bottom: 1px solid var(--linea); background: var(--sup2); }
+  @media (max-width: 560px) { .filtros { grid-template-columns: 1fr; } }
+
+  .cuerpo-casillero { padding: 4px 15px 16px; max-height: 640px; overflow-y: auto; }
+  .grupo { padding-top: 14px; }
+  .grupo h3 { font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--tinta-f); font-weight: 500; margin: 0 0 8px; }
+  .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 7px; }
+
+  .celda {
+    position: relative; aspect-ratio: 1; padding: 0;
+    background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    overflow: hidden; transition: border-color .12s ease, background .12s ease;
+  }
+  .celda:hover { border-color: var(--tinta-f); }
+  .celda .g { font-family: var(--muestra); font-size: 28px; line-height: 1; }
+  .celda .barra { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--linea); }
+  .celda .barra b { display: block; height: 100%; }
+  .celda .obs { position: absolute; top: 4px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--rojo); }
+  .celda[aria-pressed="true"] { background: var(--azul-w); border-color: var(--azul); box-shadow: inset 0 0 0 1px var(--azul); }
+  .celda.completa .g { color: var(--azul); }
+  .vacio { padding: 30px 6px; text-align: center; color: var(--tinta-f); font-size: 13.5px; }
+
+  /* ficha */
+  .ficha { position: sticky; top: 18px; }
+  @media (max-width: 940px) { .ficha { position: static; } }
+  .ficha .cuerpo { padding: 15px; display: flex; flex-direction: column; gap: 16px; max-height: 700px; overflow-y: auto; }
+  .glifo-grande {
+    display: flex; align-items: baseline; gap: 16px;
+    background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); padding: 14px 18px;
+  }
+  .glifo-grande .g { font-family: var(--muestra); font-size: 76px; line-height: 1; }
+  .glifo-grande dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 12px; font-size: 12.5px; }
+  .glifo-grande dt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-f); }
+  .glifo-grande dd { margin: 0; font-family: var(--mono); font-size: 12px; }
+
+  .campo { display: flex; flex-direction: column; gap: 4px; }
+  .campo > span { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--tinta-f); }
+  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .etapa { border-top: 1px solid var(--linea); padding-top: 11px; }
+  .etapa:first-of-type { border-top: 0; padding-top: 0; }
+  .etapa h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .etapa h4 i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .etapa h4 em { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--tinta-f); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .etapa.lista h4 { color: var(--azul); }
+  .tarea { display: flex; gap: 9px; align-items: flex-start; padding: 3px 0; font-size: 13.5px; }
+  .tarea input { margin-top: 3px; accent-color: var(--azul); flex: none; }
+  .tarea label { cursor: pointer; }
+  .tarea input:checked + label { color: var(--tinta-f); text-decoration: line-through; }
+  .tarea code { font-family: var(--mono); font-size: 12px; background: var(--sup2); padding: 0 4px; border-radius: 2px; }
+
+  .pie-ficha { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 12px 15px; border-top: 1px solid var(--linea); flex-wrap: wrap; }
+  .apunte { color: var(--tinta-f); font-size: 12.5px; }
+
+  /* guía */
+  .tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .tarjeta { background: var(--sup); border: 1px solid var(--linea); border-left: 3px solid var(--azul); border-radius: var(--r); padding: 13px 15px; display: flex; flex-direction: column; gap: 6px; }
+  .tarjeta h4 { margin: 0; font-size: 13.5px; }
+  .tarjeta p { margin: 0; font-size: 13px; color: var(--tinta-s); }
+  .tarjeta code { font-family: var(--mono); font-size: 11.5px; color: var(--tinta-f); }
+
+  details.prompt { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); }
+  details.prompt > summary { cursor: pointer; padding: 13px 15px; font-family: var(--serif); font-size: 17px; }
+  details.prompt .interior { padding: 0 15px 15px; display: flex; flex-direction: column; gap: 10px; }
+  details.prompt pre { margin: 0; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); padding: 13px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; max-height: 340px; overflow-y: auto; }
+
+  .aviso { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 14px); background: var(--tinta); color: var(--papel); padding: 9px 16px; border-radius: 999px; font-size: 13.5px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 40; }
+  .aviso.ver { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="cab">
+    <div>
+      <p class="ceja">Proyecto Tabure · FontForge</p>
+      <h1>Digitalización de escrituras</h1>
+      <p class="sub">Del trazo original al archivo tipográfico: un casillero de glifos, siete etapas por signo y las comprobaciones de FontForge que hay que pasar antes de generar la fuente.</p>
+    </div>
+    <div class="acciones">
+      <button class="btn primaria" id="btn-fuente">Cargar fuente…</button>
+      <input type="file" id="file-fuente" accept=".ttf,.otf,.woff,.woff2,font/*" hidden>
+      <button class="btn" id="btn-csv">Exportar CSV</button>
+      <button class="btn" id="btn-json">Respaldo JSON</button>
+      <button class="btn silencio" id="btn-importar">Importar</button>
+      <input type="file" id="file-importar" accept="application/json" hidden>
+    </div>
+  </header>
+
+  <section class="especimen" aria-label="Espécimen">
+    <p class="linea" id="linea-muestra">Tabure</p>
+    <div class="ctrl">
+      <input type="text" id="texto-muestra" value="Tabure · el veloz murciélago hindú comía feliz cardillo y kiwi" aria-label="Texto del espécimen">
+      <label class="rango">Cuerpo <input type="range" id="rango-tam" min="18" max="140" value="64"><span class="fuente-estado" id="tam-val">64 px</span></label>
+      <span class="fuente-estado" id="estado-fuente">Sin fuente cargada</span>
+    </div>
+  </section>
+
+  <section class="kpis" id="kpis" aria-label="Indicadores"></section>
+
+  <section class="bloque">
+    <h2 class="tit">Avance por etapa</h2>
+    <div class="pista" id="pista" role="img" aria-label="Distribución de glifos por etapa"></div>
+    <div class="leyenda" id="leyenda"></div>
+  </section>
+
+  <section class="consola">
+
+    <section class="casillero" aria-label="Casillero de glifos">
+      <header>
+        <h2 class="tit">Casillero</h2>
+        <span class="apunte" id="conteo"></span>
+      </header>
+      <div class="filtros">
+        <select id="f-etapa" aria-label="Filtrar por etapa"></select>
+        <label class="rango"><input type="checkbox" id="f-obs"> Solo con nota</label>
+      </div>
+      <div class="cuerpo-casillero" id="rejillas"></div>
+    </section>
+
+    <section class="ficha" id="ficha" aria-label="Ficha del glifo"></section>
+
+  </section>
+
+  <section class="bloque">
+    <h2 class="tit">Ajustes de la familia en FontForge</h2>
+    <div class="tarjetas">
+      <article class="tarjeta">
+        <h4>Antes de dibujar</h4>
+        <p>Fija la retícula una sola vez: unidades por em, alturas y línea base. Cambiarlas después reescala todo lo dibujado.</p>
+        <code>Element ▸ Font Info ▸ General · em 1000</code>
+      </article>
+      <article class="tarjeta">
+        <h4>Importar el trazo</h4>
+        <p>Vectoriza la muestra fuera y trae el contorno limpio, o calca sobre la imagen de fondo en la ventana del glifo.</p>
+        <code>File ▸ Import · SVG / imagen de fondo</code>
+      </article>
+      <article class="tarjeta">
+        <h4>Validar</h4>
+        <p>Contornos abiertos, dirección invertida o extremos faltantes rompen el render. Se revisan de golpe para toda la fuente.</p>
+        <code>Element ▸ Validation ▸ Find Problems</code>
+      </article>
+      <article class="tarjeta">
+        <h4>Generar</h4>
+        <p>Sube la versión en Font Info antes de exportar y conserva el archivo fuente <code>.sfd</code> junto al binario.</p>
+        <code>File ▸ Generate Fonts ▸ TrueType / OpenType</code>
+      </article>
+    </div>
+  </section>
+
+  <details class="prompt">
+    <summary>Texto para abrir un chat especializado en esta app</summary>
+    <div class="interior">
+      <p class="apunte">Cópialo como primer mensaje de un chat nuevo y completa lo que va entre corchetes.</p>
+      <pre id="texto-prompt"></pre>
+      <div><button class="btn" id="btn-prompt">Copiar texto</button></div>
+    </div>
+  </details>
+
+  <p class="apunte">El avance se guarda en el almacenamiento local de este navegador. La fuente cargada solo vive mientras la pestaña esté abierta; el respaldo JSON conserva el progreso.</p>
+</div>
+
+<div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var ETAPAS = [
+    { id: "ref",      nombre: "Referencia",  color: "#8C8F84", tareas: ["Muestra o boceto localizado", "Trazo definido: eje, contraste y remate", "Altura y proporción confirmadas"] },
+    { id: "vector",   nombre: "Vectorizado", color: "#9C7218", tareas: ["Contorno dibujado o importado en FontForge", "Nodos reducidos a los necesarios", "Curvas sin bultos ni quiebres"] },
+    { id: "contorno", nombre: "Contornos",   color: "#B0862A", tareas: ["Element ▸ Add Extrema aplicado", "Element ▸ Correct Direction aplicado", "Element ▸ Simplify sin perder la forma", "Sin errores en Element ▸ Validation"] },
+    { id: "metricas", nombre: "Espaciado",   color: "#5E7F7A", tareas: ["Márgenes izquierdo y derecho definidos", "Probado en nnoonn / HHOOHH", "Coherente con los signos vecinos"] },
+    { id: "kerning",  nombre: "Kerning",     color: "#3F5FA8", tareas: ["Pares críticos revisados", "Asignado a una clase de kerning"] },
+    { id: "prueba",   nombre: "Prueba",      color: "#2E43C8", tareas: ["Revisado a 12, 24 y 72 px", "Impreso y revisado en papel", "Cotejado contra la muestra original"] },
+    { id: "aprobado", nombre: "Aprobado",    color: "#1F2C86", tareas: ["Visto bueno del proyecto", "Congelado para esta versión"] }
+  ];
+
+  var GRUPOS = [
+    { nombre: "Mayúsculas", chars: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("") },
+    { nombre: "Minúsculas", chars: "abcdefghijklmnopqrstuvwxyz".split("") },
+    { nombre: "Cifras", chars: "0123456789".split("") },
+    { nombre: "Acentuadas y eñe", chars: "ÁÉÍÓÚÜÑáéíóúüñ".split("") },
+    { nombre: "Puntuación y signos", chars: ".,;:¿?¡!\"'«»()-–—/…&@#%".split("") }
+  ];
+
+  var TODOS = [];
+  GRUPOS.forEach(function (g) { g.chars.forEach(function (c) { TODOS.push(c); }); });
+  var TOTAL_TAREAS = ETAPAS.reduce(function (n, e) { return n + e.tareas.length; }, 0);
+  var CLAVE = "tabure.fontforge.v1";
+
+  var PROMPT = [
+    "Eres mi asistente técnico para la digitalización de escrituras del proyecto Tabure: estamos convirtiendo trazos originales en una fuente tipográfica con FontForge.",
+    "",
+    "Herramienta que uso para el control: una app de una sola página (HTML autocontenido, sin dependencias externas, guarda en localStorage con la clave \"tabure.fontforge.v1\").",
+    "- Muestra un casillero con el juego de caracteres — mayúsculas, minúsculas, cifras, acentuadas y eñe, puntuación y signos — y una ficha por glifo con nota, margen izquierdo y margen derecho.",
+    "- Cada glifo avanza por siete etapas con lista de verificación: referencia, vectorizado, contornos, espaciado, kerning, prueba y aprobado. La etapa actual se deduce de la primera tarea sin marcar.",
+    "- Las tareas de contornos son las comprobaciones de FontForge: Add Extrema, Correct Direction, Simplify y Validation sin errores.",
+    "- Permite cargar un .ttf/.otf local para ver el casillero y el espécimen con la fuente real, y exporta CSV y respaldo JSON.",
+    "",
+    "Contexto del proyecto (ajústalo):",
+    "- Origen de las formas: [manuscrito, rótulo, lápida, muestra impresa…] de [fecha y procedencia].",
+    "- Estado actual: [qué llevo dibujado y qué falta].",
+    "- Retícula: unidades por em [1000/2048], altura de mayúsculas [x], altura de x [x], ascendentes y descendentes [x].",
+    "- Formatos de salida que necesito: [TTF, OTF, WOFF2] y para qué uso [web, impresión, señalética].",
+    "- Mi nivel con FontForge: [principiante / intermedio / avanzado].",
+    "",
+    "Cómo quiero que trabajes:",
+    "- Responde en español y con pasos concretos de FontForge, nombrando el menú exacto (por ejemplo Element ▸ Add Extrema) y el atajo cuando exista.",
+    "- Cuando propongas cambios a la app, entrégame el HTML completo listo para reemplazar el archivo, no fragmentos sueltos, y mantén compatible lo ya guardado; si cambia la estructura de datos, incluye la migración.",
+    "- Para decisiones de dibujo, razona sobre la forma: eje, contraste, remates, ritmo y espaciado, y dime qué mirar para comprobar el resultado.",
+    "- Si te falta un dato para decidir, pregúntamelo en vez de suponerlo.",
+    "",
+    "Primera tarea: [describe qué necesitas — por ejemplo: definir el orden de dibujo del juego básico, resolver un error de Validation, ajustar el espaciado de las redondas, planificar las clases de kerning, o agregar una función a la app]."
+  ].join("\n");
+
+  var datos = cargar();
+  var seleccion = "a";
+  var filtros = { etapa: "", obs: false };
+
+  function nuevoRegistro() { return { checks: {}, nota: "", mi: "", md: "" }; }
+
+  function cargar() {
+    try {
+      var crudo = localStorage.getItem(CLAVE);
+      if (crudo) {
+        var p = JSON.parse(crudo);
+        if (p && typeof p === "object") return p;
+      }
+    } catch (e) { /* sin almacenamiento: se sigue en memoria */ }
+    return semilla();
+  }
+
+  function semilla() {
+    var d = {};
+    var planas = [];
+    ETAPAS.forEach(function (e) { e.tareas.forEach(function (_, i) { planas.push(e.id + ":" + i); }); });
+    // Un arranque realista: el juego básico en minúsculas va más adelantado que el resto.
+    var avance = { a: 15, b: 15, c: 15, d: 15, e: 15, n: 15, o: 15, h: 12, i: 12, m: 12, p: 9, q: 9, r: 9, s: 6, t: 6, u: 6,
+                   A: 6, B: 4, C: 4, D: 4, E: 4, H: 3, N: 3, O: 3, "1": 2, "0": 2, ".": 3, ",": 3 };
+    TODOS.forEach(function (c) {
+      var r = nuevoRegistro();
+      var n = avance[c] || 0;
+      for (var i = 0; i < n && i < planas.length; i++) r.checks[planas[i]] = true;
+      d[c] = r;
+    });
+    if (d.s) d.s.nota = "La espina queda pesada arriba; comparar con la muestra del rótulo.";
+    if (d.g) d.g.nota = "Decidir si la cola es cerrada o abierta antes de seguir.";
+    return d;
+  }
+
+  function guardar() {
+    try { localStorage.setItem(CLAVE, JSON.stringify(datos)); }
+    catch (e) { avisar("No se pudo guardar en este navegador; descarga el respaldo JSON."); }
+  }
+
+  function reg(c) {
+    if (!datos[c]) datos[c] = nuevoRegistro();
+    if (!datos[c].checks) datos[c].checks = {};
+    return datos[c];
+  }
+  function hechas(c) {
+    var r = reg(c), n = 0;
+    ETAPAS.forEach(function (e) { e.tareas.forEach(function (_, i) { if (r.checks[e.id + ":" + i]) n++; }); });
+    return n;
+  }
+  function etapaLista(c, e) {
+    var r = reg(c);
+    return e.tareas.every(function (_, i) { return r.checks[e.id + ":" + i]; });
+  }
+  function etapaActual(c) {
+    for (var i = 0; i < ETAPAS.length; i++) if (!etapaLista(c, ETAPAS[i])) return ETAPAS[i];
+    return null;
+  }
+  function cp(c) {
+    var v = c.codePointAt(0).toString(16).toUpperCase();
+    return "U+" + ("0000" + v).slice(-4);
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (x) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[x];
+    });
+  }
+
+  var tempAviso;
+  function avisar(m) {
+    var el = document.getElementById("aviso");
+    el.textContent = m;
+    el.classList.add("ver");
+    clearTimeout(tempAviso);
+    tempAviso = setTimeout(function () { el.classList.remove("ver"); }, 2400);
+  }
+  function copiar(t, m) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { avisar(m); }, function () { avisar("El navegador bloqueó el portapapeles; selecciona y copia a mano."); });
+    } else { avisar("El navegador bloqueó el portapapeles; selecciona y copia a mano."); }
+  }
+
+  /* ---------- indicadores ---------- */
+  function pintarKpis() {
+    var total = TODOS.length;
+    var aprobados = TODOS.filter(function (c) { return !etapaActual(c); }).length;
+    var dibujados = TODOS.filter(function (c) {
+      var e = etapaActual(c);
+      return !e || ETAPAS.indexOf(e) >= 2;
+    }).length;
+    var conNota = TODOS.filter(function (c) { return (reg(c).nota || "").trim(); }).length;
+    var tareas = TODOS.reduce(function (n, c) { return n + hechas(c); }, 0);
+    var pct = Math.round((tareas / (total * TOTAL_TAREAS)) * 100);
+
+    var items = [
+      { rot: "Glifos del juego", val: total },
+      { rot: "Avance global", val: pct + "<small>%</small>" },
+      { rot: "Dibujados", val: dibujados + "<small>/" + total + "</small>" },
+      { rot: "Aprobados", val: aprobados + "<small>/" + total + "</small>" },
+      { rot: "Con nota abierta", val: conNota, aviso: conNota > 0 }
+    ];
+    document.getElementById("kpis").innerHTML = items.map(function (k) {
+      return '<div class="kpi' + (k.aviso ? " aviso" : "") + '"><span class="rot">' + k.rot + '</span><span class="val">' + k.val + "</span></div>";
+    }).join("");
+  }
+
+  function pintarPista() {
+    var cuenta = {};
+    ETAPAS.forEach(function (e) { cuenta[e.id] = 0; });
+    cuenta.listo = 0;
+    TODOS.forEach(function (c) {
+      var e = etapaActual(c);
+      cuenta[e ? e.id : "listo"]++;
+    });
+    var cubos = ETAPAS.map(function (e) { return { nombre: e.nombre, color: e.color, n: cuenta[e.id] }; });
+    cubos.push({ nombre: "Completado", color: "#151C4D", n: cuenta.listo });
+
+    document.getElementById("pista").innerHTML = cubos.map(function (b) {
+      return '<span style="flex-grow:' + b.n + ';background:' + b.color + '" title="' + esc(b.nombre) + ": " + b.n + '"></span>';
+    }).join("");
+    document.getElementById("leyenda").innerHTML = cubos.map(function (b) {
+      return '<div><i style="background:' + b.color + '"></i>' + esc(b.nombre) + " <b>" + b.n + "</b></div>";
+    }).join("");
+  }
+
+  /* ---------- casillero ---------- */
+  function pasaFiltro(c) {
+    if (filtros.obs && !(reg(c).nota || "").trim()) return false;
+    if (filtros.etapa) {
+      var e = etapaActual(c);
+      if ((e ? e.id : "listo") !== filtros.etapa) return false;
+    }
+    return true;
+  }
+
+  function pintarCasillero() {
+    var cont = document.getElementById("rejillas");
+    var visibles = 0;
+    var html = GRUPOS.map(function (g) {
+      var chars = g.chars.filter(pasaFiltro);
+      if (!chars.length) return "";
+      visibles += chars.length;
+      var celdas = chars.map(function (c) {
+        var r = reg(c);
+        var e = etapaActual(c);
+        var pct = Math.round((hechas(c) / TOTAL_TAREAS) * 100);
+        var color = e ? e.color : "#151C4D";
+        var nota = (r.nota || "").trim() ? '<span class="obs" title="Tiene nota"></span>' : "";
+        return '<button type="button" class="celda' + (e ? "" : " completa") + '" data-c="' + esc(c) + '"' +
+          ' aria-pressed="' + (c === seleccion) + '" title="' + esc(c) + " · " + cp(c) + " · " + esc(e ? e.nombre : "Completado") + '">' +
+          '<span class="g">' + esc(c) + "</span>" + nota +
+          '<span class="barra"><b style="width:' + pct + "%;background:" + color + '"></b></span></button>';
+      }).join("");
+      return '<div class="grupo"><h3>' + esc(g.nombre) + " · " + chars.length + "</h3><div class=\"rejilla\">" + celdas + "</div></div>";
+    }).join("");
+
+    cont.innerHTML = html || '<p class="vacio">Ningún glifo coincide con el filtro.</p>';
+    document.getElementById("conteo").textContent = visibles + " de " + TODOS.length + " glifos";
+  }
+
+  /* ---------- ficha ---------- */
+  function pintarFicha() {
+    var ficha = document.getElementById("ficha");
+    var c = seleccion;
+    var r = reg(c);
+    var e = etapaActual(c);
+
+    var etapasHtml = ETAPAS.map(function (et) {
+      var lista = etapaLista(c, et);
+      var n = et.tareas.filter(function (_, i) { return r.checks[et.id + ":" + i]; }).length;
+      var tareas = et.tareas.map(function (t, i) {
+        var k = et.id + ":" + i;
+        var id = "t-" + cp(c).slice(2) + "-" + et.id + "-" + i;
+        var texto = esc(t).replace(/(Element ▸ [A-Za-z ]+)/, "<code>$1</code>");
+        return '<div class="tarea"><input type="checkbox" id="' + id + '" data-tarea="' + k + '"' + (r.checks[k] ? " checked" : "") + '><label for="' + id + '">' + texto + "</label></div>";
+      }).join("");
+      return '<div class="etapa' + (lista ? " lista" : "") + '"><h4><i style="background:' + et.color + '"></i>' + esc(et.nombre) + "<em>" + n + "/" + et.tareas.length + "</em></h4>" + tareas + "</div>";
+    }).join("");
+
+    ficha.innerHTML =
+      '<header><h2 class="tit">Glifo ' + esc(c) + '</h2><span class="apunte">' + esc(e ? e.nombre : "Completado") + "</span></header>" +
+      '<div class="cuerpo">' +
+        '<div class="glifo-grande"><span class="g">' + esc(c) + "</span><dl>" +
+          "<dt>Unicode</dt><dd>" + cp(c) + "</dd>" +
+          "<dt>Avance</dt><dd>" + hechas(c) + "/" + TOTAL_TAREAS + "</dd>" +
+          "<dt>Etapa</dt><dd>" + esc(e ? e.nombre : "completado") + "</dd>" +
+        "</dl></div>" +
+        '<div class="par">' +
+          '<label class="campo"><span>Margen izquierdo</span><input type="number" data-f="mi" value="' + esc(r.mi) + '" placeholder="unidades"></label>' +
+          '<label class="campo"><span>Margen derecho</span><input type="number" data-f="md" value="' + esc(r.md) + '" placeholder="unidades"></label>' +
+        "</div>" +
+        '<label class="campo"><span>Nota de dibujo</span><textarea data-f="nota" placeholder="Dudas de forma, ajustes pendientes, referencias a la muestra…">' + esc(r.nota) + "</textarea></label>" +
+        "<div>" + etapasHtml + "</div>" +
+      "</div>" +
+      '<div class="pie-ficha"><span class="apunte">' + hechas(c) + " de " + TOTAL_TAREAS + ' tareas</span><button class="btn" id="btn-reinicia">Reiniciar este glifo</button></div>';
+
+    ficha.querySelectorAll("[data-f]").forEach(function (inp) {
+      inp.addEventListener("input", function () {
+        r[inp.getAttribute("data-f")] = inp.value;
+        guardar();
+        pintarKpis();
+        pintarCasillero();
+      });
+    });
+    ficha.querySelectorAll("[data-tarea]").forEach(function (box) {
+      box.addEventListener("change", function () {
+        var k = box.getAttribute("data-tarea");
+        if (box.checked) r.checks[k] = true; else delete r.checks[k];
+        guardar();
+        pintarTodo();
+      });
+    });
+    document.getElementById("btn-reinicia").addEventListener("click", function () {
+      if (!confirm("¿Borrar el avance del glifo " + c + "?")) return;
+      r.checks = {};
+      guardar();
+      pintarTodo();
+      avisar("Glifo " + c + " reiniciado");
+    });
+  }
+
+  function pintarTodo() {
+    pintarKpis();
+    pintarPista();
+    pintarCasillero();
+    pintarFicha();
+  }
+
+  /* ---------- eventos ---------- */
+  document.getElementById("rejillas").addEventListener("click", function (ev) {
+    var btn = ev.target.closest(".celda");
+    if (!btn) return;
+    seleccion = btn.getAttribute("data-c");
+    pintarCasillero();
+    pintarFicha();
+    if (window.innerWidth <= 940) document.getElementById("ficha").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  var selEtapa = document.getElementById("f-etapa");
+  selEtapa.innerHTML = '<option value="">Todas las etapas</option>' +
+    ETAPAS.map(function (e) { return '<option value="' + e.id + '">' + esc(e.nombre) + "</option>"; }).join("") +
+    '<option value="listo">Completado</option>';
+  selEtapa.addEventListener("change", function (ev) { filtros.etapa = ev.target.value; pintarCasillero(); });
+  document.getElementById("f-obs").addEventListener("change", function (ev) { filtros.obs = ev.target.checked; pintarCasillero(); });
+
+  /* espécimen */
+  var linea = document.getElementById("linea-muestra");
+  document.getElementById("texto-muestra").addEventListener("input", function (ev) {
+    linea.textContent = ev.target.value || "Tabure";
+  });
+  linea.textContent = document.getElementById("texto-muestra").value;
+  var rango = document.getElementById("rango-tam");
+  rango.addEventListener("input", function () {
+    linea.style.fontSize = rango.value + "px";
+    document.getElementById("tam-val").textContent = rango.value + " px";
+  });
+
+  document.getElementById("btn-fuente").addEventListener("click", function () {
+    document.getElementById("file-fuente").click();
+  });
+  document.getElementById("file-fuente").addEventListener("change", function (ev) {
+    var f = ev.target.files[0];
+    if (!f) return;
+    f.arrayBuffer().then(function (buf) {
+      var cara = new FontFace("TabureLocal", buf);
+      return cara.load();
+    }).then(function (cara) {
+      document.fonts.add(cara);
+      document.documentElement.style.setProperty("--muestra", '"TabureLocal", ' + getComputedStyle(document.documentElement).getPropertyValue("--serif"));
+      document.getElementById("estado-fuente").textContent = f.name;
+      avisar("Fuente cargada: " + f.name);
+    }).catch(function () {
+      avisar("No se pudo leer esa fuente. Prueba con un .ttf, .otf o .woff generado desde FontForge.");
+    });
+    ev.target.value = "";
+  });
+
+  /* exportar / importar */
+  function descargar(nombre, texto, tipo) {
+    var blob = new Blob([texto], { type: tipo });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  document.getElementById("btn-csv").addEventListener("click", function () {
+    var cab = ["glifo", "unicode", "grupo", "etapa_actual", "avance_pct", "margen_izq", "margen_der", "nota"];
+    var filas = [];
+    GRUPOS.forEach(function (g) {
+      g.chars.forEach(function (c) {
+        var r = reg(c), e = etapaActual(c);
+        filas.push([c, cp(c), g.nombre, e ? e.nombre : "Completado",
+          Math.round((hechas(c) / TOTAL_TAREAS) * 100), r.mi, r.md, (r.nota || "").replace(/\s+/g, " ")]);
+      });
+    });
+    var csv = [cab].concat(filas).map(function (f) {
+      return f.map(function (x) { return '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"'; }).join(",");
+    }).join("\r\n");
+    descargar("tabure-glifos.csv", "﻿" + csv, "text/csv;charset=utf-8");
+    avisar("CSV descargado");
+  });
+
+  document.getElementById("btn-json").addEventListener("click", function () {
+    descargar("tabure-glifos-respaldo.json", JSON.stringify(datos, null, 2), "application/json");
+    avisar("Respaldo descargado");
+  });
+
+  document.getElementById("btn-importar").addEventListener("click", function () {
+    document.getElementById("file-importar").click();
+  });
+  document.getElementById("file-importar").addEventListener("change", function (ev) {
+    var f = ev.target.files[0];
+    if (!f) return;
+    var lector = new FileReader();
+    lector.onload = function () {
+      try {
+        var p = JSON.parse(lector.result);
+        if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error("formato");
+        datos = p;
+        guardar();
+        pintarTodo();
+        avisar("Avance importado");
+      } catch (e) {
+        avisar("El archivo no tiene el formato del respaldo JSON de esta app.");
+      }
+      ev.target.value = "";
+    };
+    lector.readAsText(f);
+  });
+
+  document.getElementById("texto-prompt").textContent = PROMPT;
+  document.getElementById("btn-prompt").addEventListener("click", function () { copiar(PROMPT, "Texto copiado"); });
+
+  pintarTodo();
+})();
+</script>
