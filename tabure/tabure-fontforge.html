@@ -1,19 +1,19 @@
-<title>Tabure · Producción de glifos en FontForge</title>
+<title>Tabure'shi · šitakü — taller de digitalización</title>
 <style>
   :root {
     color-scheme: light;
-    --papel:     #E6E7E2;
-    --sup:       #F2F2EE;
-    --sup2:      #DBDCD5;
-    --linea:     #C6C8BF;
-    --tinta:     #15171B;
-    --tinta-s:   #4E5359;
-    --tinta-f:   #7C8189;
-    --azul:      #2E43C8;
-    --azul-w:    #DDE0F6;
-    --rojo:      #B03A3A;
-    --ambar:     #8F6A12;
-    --foco:      #2E43C8;
+    --papel:   #E7E8E0;
+    --sup:     #F2F3EC;
+    --sup2:    #DBDDD2;
+    --linea:   #C4C8BA;
+    --tinta:   #171A17;
+    --tinta-s: #4C544C;
+    --tinta-f: #79817A;
+    --savia:   #2F6B45;
+    --savia-w: #DCE8DF;
+    --rojo:    #A8352F;
+    --ambar:   #8A6410;
+    --foco:    #2F6B45;
 
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", "Hoefler Text", Georgia, serif;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -21,164 +21,156 @@
     --muestra: var(--serif);
 
     --r: 3px;
-    --sombra: 0 1px 0 rgba(21,23,27,.05), 0 10px 26px -20px rgba(21,23,27,.6);
+    --sombra: 0 1px 0 rgba(23,26,23,.05), 0 10px 26px -20px rgba(23,26,23,.6);
   }
   @media (prefers-color-scheme: dark) {
     :root {
       color-scheme: dark;
-      --papel:   #131418;
-      --sup:     #1B1D22;
-      --sup2:    #23262C;
-      --linea:   #33373E;
-      --tinta:   #E3E4E0;
-      --tinta-s: #A6ABB2;
-      --tinta-f: #787D85;
-      --azul:    #8FA0FF;
-      --azul-w:  #1E2233;
-      --rojo:    #E08078;
-      --ambar:   #D2A745;
-      --foco:    #8FA0FF;
+      --papel: #121512; --sup: #1A1E1A; --sup2: #232823; --linea: #333A34;
+      --tinta: #E1E4DF; --tinta-s: #A5ADA5; --tinta-f: #778078;
+      --savia: #79C495; --savia-w: #1C2A22; --rojo: #E58C82; --ambar: #D3A548; --foco: #79C495;
       --sombra: 0 1px 0 rgba(0,0,0,.35), 0 12px 28px -20px #000;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --papel:   #131418; --sup: #1B1D22; --sup2: #23262C; --linea: #33373E;
-    --tinta:   #E3E4E0; --tinta-s: #A6ABB2; --tinta-f: #787D85;
-    --azul:    #8FA0FF; --azul-w: #1E2233; --rojo: #E08078; --ambar: #D2A745; --foco: #8FA0FF;
+    --papel: #121512; --sup: #1A1E1A; --sup2: #232823; --linea: #333A34;
+    --tinta: #E1E4DF; --tinta-s: #A5ADA5; --tinta-f: #778078;
+    --savia: #79C495; --savia-w: #1C2A22; --rojo: #E58C82; --ambar: #D3A548; --foco: #79C495;
     --sombra: 0 1px 0 rgba(0,0,0,.35), 0 12px 28px -20px #000;
   }
   :root[data-theme="light"] {
     color-scheme: light;
-    --papel: #E6E7E2; --sup: #F2F2EE; --sup2: #DBDCD5; --linea: #C6C8BF;
-    --tinta: #15171B; --tinta-s: #4E5359; --tinta-f: #7C8189;
-    --azul: #2E43C8; --azul-w: #DDE0F6; --rojo: #B03A3A; --ambar: #8F6A12; --foco: #2E43C8;
-    --sombra: 0 1px 0 rgba(21,23,27,.05), 0 10px 26px -20px rgba(21,23,27,.6);
+    --papel: #E7E8E0; --sup: #F2F3EC; --sup2: #DBDDD2; --linea: #C4C8BA;
+    --tinta: #171A17; --tinta-s: #4C544C; --tinta-f: #79817A;
+    --savia: #2F6B45; --savia-w: #DCE8DF; --rojo: #A8352F; --ambar: #8A6410; --foco: #2F6B45;
+    --sombra: 0 1px 0 rgba(23,26,23,.05), 0 10px 26px -20px rgba(23,26,23,.6);
   }
 
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--papel); color: var(--tinta);
-    font-family: var(--sans); font-size: 15px; line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
+  body { margin: 0; background: var(--papel); color: var(--tinta); font-family: var(--sans); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   :focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; border-radius: 2px; }
-
   .wrap { max-width: 1280px; margin: 0 auto; padding: 26px 22px 80px; display: flex; flex-direction: column; gap: 26px; }
 
-  /* cabecera */
   .cab { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px; border-bottom: 2px solid var(--tinta); padding-bottom: 14px; }
   .cab h1 { font-family: var(--serif); font-size: clamp(28px, 4vw, 42px); font-weight: 600; letter-spacing: -.015em; line-height: 1.05; margin: 0; text-wrap: balance; }
   .ceja { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--tinta-f); margin: 0 0 6px; }
-  .cab p.sub { margin: 6px 0 0; color: var(--tinta-s); max-width: 60ch; }
+  .cab p.sub { margin: 6px 0 0; color: var(--tinta-s); max-width: 62ch; }
   .acciones { display: flex; gap: 8px; flex-wrap: wrap; }
 
   button, select, input, textarea { font: inherit; color: inherit; }
   .btn { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); padding: 7px 13px; cursor: pointer; font-size: 13.5px; transition: background .12s ease, border-color .12s ease; }
   .btn:hover { background: var(--sup2); border-color: var(--tinta-f); }
-  .btn.primaria { background: var(--azul); border-color: var(--azul); color: var(--papel); font-weight: 600; }
+  .btn.primaria { background: var(--savia); border-color: var(--savia); color: var(--papel); font-weight: 600; }
   .btn.primaria:hover { filter: brightness(1.1); }
   .btn.silencio { background: transparent; }
-  input[type="text"], input[type="number"], select, textarea {
-    background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); padding: 7px 9px; width: 100%;
-  }
+  input[type="text"], select, textarea { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); padding: 7px 9px; width: 100%; }
   textarea { resize: vertical; min-height: 60px; line-height: 1.45; }
 
-  /* espécimen */
-  .especimen { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); box-shadow: var(--sombra); overflow: hidden; }
-  .especimen .linea {
-    font-family: var(--muestra);
-    font-size: 64px; line-height: 1.18; padding: 22px 20px; margin: 0;
-    word-break: break-word; text-wrap: balance;
-  }
-  .especimen .ctrl { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 11px 15px; border-top: 1px solid var(--linea); background: var(--sup2); }
-  @media (max-width: 640px) { .especimen .ctrl { grid-template-columns: 1fr; } }
-  .ctrl label.rango { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--tinta-s); white-space: nowrap; }
-  .ctrl input[type="range"] { width: 150px; accent-color: var(--azul); }
-  .fuente-estado { font-family: var(--mono); font-size: 11.5px; color: var(--tinta-f); }
+  h2.tit { font-family: var(--serif); font-size: 19px; font-weight: 600; margin: 0; }
+  .bloque { display: flex; flex-direction: column; gap: 12px; }
+  .apunte { color: var(--tinta-f); font-size: 12.5px; }
+
+  /* estado del archivo */
+  .archivo { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: baseline; background: var(--sup); border: 1px solid var(--linea); border-left: 3px solid var(--savia); border-radius: var(--r); padding: 12px 15px; font-size: 13px; }
+  .archivo b { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+  .archivo span.et { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--tinta-f); display: block; }
 
   /* indicadores */
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: var(--r); overflow: hidden; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: var(--r); overflow: hidden; }
   .kpi { background: var(--sup); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
   .kpi .rot { font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--tinta-f); }
   .kpi .val { font-family: var(--serif); font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .kpi .val small { font-size: 14px; color: var(--tinta-f); font-family: var(--sans); }
-  .kpi.aviso .val { color: var(--rojo); }
+  .kpi.mal .val { color: var(--rojo); }
+  .kpi.medio .val { color: var(--ambar); }
 
-  h2.tit { font-family: var(--serif); font-size: 18px; font-weight: 600; margin: 0; }
-  .bloque { display: flex; flex-direction: column; gap: 11px; }
+  /* hallazgos */
+  .hallazgos { display: flex; flex-direction: column; gap: 1px; background: var(--linea); border: 1px solid var(--linea); border-radius: var(--r); overflow: hidden; }
+  .hall { background: var(--sup); padding: 12px 15px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; }
+  .hall .sev { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .hall.bloq .sev { color: var(--rojo); }
+  .hall.aviso .sev { color: var(--ambar); }
+  .hall.nota .sev { color: var(--tinta-f); }
+  .hall.ok .sev { color: var(--savia); }
+  .hall p { margin: 0; grid-column: 2; }
+  .hall .via { grid-column: 2; font-family: var(--mono); font-size: 11.5px; color: var(--tinta-f); }
+  .hall strong { font-weight: 600; }
 
-  .pista { display: flex; height: 24px; border: 1px solid var(--linea); border-radius: var(--r); overflow: hidden; background: var(--sup); }
-  .pista span { display: block; min-width: 2px; }
-  .leyenda { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--tinta-s); }
-  .leyenda div { display: flex; align-items: center; gap: 6px; }
-  .leyenda i { width: 10px; height: 10px; border-radius: 2px; }
-  .leyenda b { font-variant-numeric: tabular-nums; color: var(--tinta); font-weight: 600; }
+  /* espécimen y conversor */
+  .taller { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 22px; }
+  @media (max-width: 900px) { .taller { grid-template-columns: minmax(0,1fr); } }
+  .caja { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); box-shadow: var(--sombra); display: flex; flex-direction: column; }
+  .caja > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 15px; border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
+  .caja .cuerpo { padding: 14px 15px; display: flex; flex-direction: column; gap: 11px; }
+  .salida { font-family: var(--muestra); font-size: 46px; line-height: 1.35; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); padding: 14px; min-height: 92px; word-break: break-word; }
+  .puntos { font-family: var(--mono); font-size: 11px; color: var(--tinta-f); word-break: break-all; max-height: 74px; overflow-y: auto; }
+  .fila { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .teclado { display: flex; flex-wrap: wrap; gap: 4px; }
+  .teclado button { font-family: var(--serif); font-size: 14px; padding: 3px 8px; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); cursor: pointer; }
+  .teclado button:hover { border-color: var(--savia); }
 
-  /* consola */
+  /* casillero */
   .consola { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 22px; align-items: start; }
   @media (max-width: 940px) { .consola { grid-template-columns: minmax(0, 1fr); } }
-
-  .casillero, .ficha, .guia { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); box-shadow: var(--sombra); }
   .casillero > header, .ficha > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
+  .casillero, .ficha { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); box-shadow: var(--sombra); }
   .filtros { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 11px 15px; border-bottom: 1px solid var(--linea); background: var(--sup2); }
   @media (max-width: 560px) { .filtros { grid-template-columns: 1fr; } }
+  .marcar { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--tinta-s); white-space: nowrap; }
 
-  .cuerpo-casillero { padding: 4px 15px 16px; max-height: 640px; overflow-y: auto; }
+  .cuerpo-casillero { padding: 2px 15px 16px; max-height: 660px; overflow-y: auto; }
   .grupo { padding-top: 14px; }
-  .grupo h3 { font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--tinta-f); font-weight: 500; margin: 0 0 8px; }
-  .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 7px; }
+  .grupo h3 { font-size: 12px; font-weight: 600; margin: 0 0 8px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .grupo h3 em { font-style: normal; font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--tinta-f); }
+  .grupo h3 .voc { font-family: var(--serif); font-size: 14px; color: var(--savia); }
+  .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 7px; }
 
-  .celda {
-    position: relative; aspect-ratio: 1; padding: 0;
-    background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r);
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    overflow: hidden; transition: border-color .12s ease, background .12s ease;
-  }
+  .celda { position: relative; padding: 8px 4px 10px; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; overflow: hidden; transition: border-color .12s ease, background .12s ease; }
   .celda:hover { border-color: var(--tinta-f); }
-  .celda .g { font-family: var(--muestra); font-size: 28px; line-height: 1; }
-  .celda .barra { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--linea); }
-  .celda .barra b { display: block; height: 100%; }
-  .celda .obs { position: absolute; top: 4px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--rojo); }
-  .celda[aria-pressed="true"] { background: var(--azul-w); border-color: var(--azul); box-shadow: inset 0 0 0 1px var(--azul); }
-  .celda.completa .g { color: var(--azul); }
+  .celda .rom { font-family: var(--serif); font-size: 22px; line-height: 1.1; }
+  .celda .gl { font-family: var(--muestra); font-size: 26px; line-height: 1.1; display: none; }
+  .celda .cod { font-family: var(--mono); font-size: 9.5px; color: var(--tinta-f); }
+  body.con-fuente .celda .gl { display: block; }
+  body.con-fuente .celda .rom { font-size: 13px; color: var(--tinta-s); }
+  .celda .barra { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--sup2); }
+  .celda .barra b { display: block; height: 100%; background: var(--savia); }
+  .celda .senal { position: absolute; top: 4px; right: 5px; width: 6px; height: 6px; border-radius: 50%; }
+  .celda[aria-pressed="true"] { background: var(--savia-w); border-color: var(--savia); box-shadow: inset 0 0 0 1px var(--savia); }
+  .celda.ausente { border-style: dashed; opacity: .72; }
   .vacio { padding: 30px 6px; text-align: center; color: var(--tinta-f); font-size: 13.5px; }
 
   /* ficha */
   .ficha { position: sticky; top: 18px; }
   @media (max-width: 940px) { .ficha { position: static; } }
-  .ficha .cuerpo { padding: 15px; display: flex; flex-direction: column; gap: 16px; max-height: 700px; overflow-y: auto; }
-  .glifo-grande {
-    display: flex; align-items: baseline; gap: 16px;
-    background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); padding: 14px 18px;
-  }
-  .glifo-grande .g { font-family: var(--muestra); font-size: 76px; line-height: 1; }
-  .glifo-grande dl { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 12px; font-size: 12.5px; }
-  .glifo-grande dt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-f); }
-  .glifo-grande dd { margin: 0; font-family: var(--mono); font-size: 12px; }
-
-  .campo { display: flex; flex-direction: column; gap: 4px; }
-  .campo > span { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--tinta-f); }
-  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ficha .cuerpo { padding: 15px; display: flex; flex-direction: column; gap: 16px; max-height: 720px; overflow-y: auto; }
+  .retrato { display: flex; align-items: center; gap: 18px; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); padding: 14px 18px; }
+  .retrato .gl { font-family: var(--muestra); font-size: 72px; line-height: 1; display: none; }
+  body.con-fuente .retrato .gl { display: block; }
+  .retrato .rom { font-family: var(--serif); font-size: 40px; line-height: 1; }
+  .datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 9px; }
+  .datos div { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); padding: 7px 9px; }
+  .datos dt, .datos .et { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-f); }
+  .datos .vv { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .datos .vv.mal { color: var(--rojo); }
 
   .etapa { border-top: 1px solid var(--linea); padding-top: 11px; }
   .etapa:first-of-type { border-top: 0; padding-top: 0; }
   .etapa h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .etapa h4 i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .etapa h4 em { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--tinta-f); margin-left: auto; font-variant-numeric: tabular-nums; }
-  .etapa.lista h4 { color: var(--azul); }
+  .etapa.lista h4 { color: var(--savia); }
   .tarea { display: flex; gap: 9px; align-items: flex-start; padding: 3px 0; font-size: 13.5px; }
-  .tarea input { margin-top: 3px; accent-color: var(--azul); flex: none; }
+  .tarea input { margin-top: 3px; accent-color: var(--savia); flex: none; }
   .tarea label { cursor: pointer; }
   .tarea input:checked + label { color: var(--tinta-f); text-decoration: line-through; }
+  .tarea input:disabled + label { cursor: default; }
+  .tarea .auto { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-f); border: 1px solid var(--linea); border-radius: 999px; padding: 0 5px; margin-left: 5px; white-space: nowrap; }
   .tarea code { font-family: var(--mono); font-size: 12px; background: var(--sup2); padding: 0 4px; border-radius: 2px; }
-
   .pie-ficha { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 12px 15px; border-top: 1px solid var(--linea); flex-wrap: wrap; }
-  .apunte { color: var(--tinta-f); font-size: 12.5px; }
 
-  /* guía */
   .tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-  .tarjeta { background: var(--sup); border: 1px solid var(--linea); border-left: 3px solid var(--azul); border-radius: var(--r); padding: 13px 15px; display: flex; flex-direction: column; gap: 6px; }
+  .tarjeta { background: var(--sup); border: 1px solid var(--linea); border-left: 3px solid var(--savia); border-radius: var(--r); padding: 13px 15px; display: flex; flex-direction: column; gap: 6px; }
   .tarjeta h4 { margin: 0; font-size: 13.5px; }
   .tarjeta p { margin: 0; font-size: 13px; color: var(--tinta-s); }
   .tarjeta code { font-family: var(--mono); font-size: 11.5px; color: var(--tinta-f); }
@@ -190,7 +182,6 @@
 
   .aviso { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 14px); background: var(--tinta); color: var(--papel); padding: 9px 16px; border-radius: 999px; font-size: 13.5px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 40; }
   .aviso.ver { opacity: 1; transform: translate(-50%, 0); }
-
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -198,91 +189,126 @@
 
   <header class="cab">
     <div>
-      <p class="ceja">Proyecto Tabure · FontForge</p>
-      <h1>Digitalización de escrituras</h1>
-      <p class="sub">Del trazo original al archivo tipográfico: un casillero de glifos, siete etapas por signo y las comprobaciones de FontForge que hay que pasar antes de generar la fuente.</p>
+      <p class="ceja">Tabure'shi · escritura Madera (šitakü)</p>
+      <h1>Taller de digitalización</h1>
+      <p class="sub">Auditoría del archivo <code>.sfd</code> contra el inventario de la gramática: 34 consonantes en once grupos, diez vocales diacríticas, portador nulo y cinco signos. Carga tu SFD y la herramienta recalcula qué falta y por dónde seguir en FontForge.</p>
     </div>
     <div class="acciones">
-      <button class="btn primaria" id="btn-fuente">Cargar fuente…</button>
-      <input type="file" id="file-fuente" accept=".ttf,.otf,.woff,.woff2,font/*" hidden>
+      <button class="btn primaria" id="btn-sfd">Cargar .sfd</button>
+      <input type="file" id="file-sfd" accept=".sfd" hidden>
+      <button class="btn" id="btn-fuente">Cargar fuente</button>
+      <input type="file" id="file-fuente" accept=".ttf,.otf,.woff,.woff2" hidden>
       <button class="btn" id="btn-csv">Exportar CSV</button>
-      <button class="btn" id="btn-json">Respaldo JSON</button>
-      <button class="btn silencio" id="btn-importar">Importar</button>
-      <input type="file" id="file-importar" accept="application/json" hidden>
+      <button class="btn silencio" id="btn-json">Respaldo</button>
+      <input type="file" id="file-json" accept="application/json" hidden>
     </div>
   </header>
 
-  <section class="especimen" aria-label="Espécimen">
-    <p class="linea" id="linea-muestra">Tabure</p>
-    <div class="ctrl">
-      <input type="text" id="texto-muestra" value="Tabure · el veloz murciélago hindú comía feliz cardillo y kiwi" aria-label="Texto del espécimen">
-      <label class="rango">Cuerpo <input type="range" id="rango-tam" min="18" max="140" value="64"><span class="fuente-estado" id="tam-val">64 px</span></label>
-      <span class="fuente-estado" id="estado-fuente">Sin fuente cargada</span>
-    </div>
-  </section>
+  <section class="archivo" id="archivo" aria-label="Archivo auditado"></section>
 
   <section class="kpis" id="kpis" aria-label="Indicadores"></section>
 
   <section class="bloque">
-    <h2 class="tit">Avance por etapa</h2>
-    <div class="pista" id="pista" role="img" aria-label="Distribución de glifos por etapa"></div>
-    <div class="leyenda" id="leyenda"></div>
+    <h2 class="tit">Hallazgos del archivo</h2>
+    <div class="hallazgos" id="hallazgos"></div>
+  </section>
+
+  <section class="taller">
+    <section class="caja" aria-label="Conversor de romanización">
+      <header><h2 class="tit">Conversor de prueba</h2><span class="apunte" id="estado-fuente">sin fuente cargada</span></header>
+      <div class="cuerpo">
+        <input type="text" id="entrada" value="dana arlan vainu uŋki" aria-label="Texto en romanización">
+        <div class="teclado" id="teclado"></div>
+        <div class="salida" id="salida"></div>
+        <div class="puntos" id="puntos"></div>
+        <div class="fila">
+          <button class="btn" id="btn-copiar">Copiar en šitakü</button>
+          <span class="apunte" id="nota-conv"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="caja" aria-label="Cómo se compone">
+      <header><h2 class="tit">Cómo se compone</h2></header>
+      <div class="cuerpo">
+        <p style="margin:0;font-size:13.5px;color:var(--tinta-s)">La vocal no es grafema autónomo: se ancla como diacrítico sobre el trazo consonántico. El conversor aplica la regla del portador nulo tal como la fija §2.2.2 de la gramática.</p>
+        <div class="tarjetas" style="grid-template-columns:1fr">
+          <article class="tarjeta">
+            <h4>Vocal tras consonante</h4>
+            <p><b>da</b> → trazo de <i>d</i> + marca <i>a</i>. Un solo par base–marca.</p>
+          </article>
+          <article class="tarjeta">
+            <h4>Dos vocales seguidas</h4>
+            <p><b>vainu</b> → la <i>i</i> no tiene consonante donde apoyarse: entra el portador nulo Ø como base muda.</p>
+          </article>
+          <article class="tarjeta">
+            <h4>Palabra que arranca por vocal</h4>
+            <p><b>arlan</b> → portador nulo + marca <i>a</i>, y sigue <i>r</i>, <i>l</i>, <i>a</i>, <i>n</i>.</p>
+          </article>
+        </div>
+      </div>
+    </section>
   </section>
 
   <section class="consola">
-
     <section class="casillero" aria-label="Casillero de glifos">
       <header>
         <h2 class="tit">Casillero</h2>
         <span class="apunte" id="conteo"></span>
       </header>
       <div class="filtros">
-        <select id="f-etapa" aria-label="Filtrar por etapa"></select>
-        <label class="rango"><input type="checkbox" id="f-obs"> Solo con nota</label>
+        <select id="f-estado" aria-label="Filtrar">
+          <option value="">Todo el inventario</option>
+          <option value="pend">Con algo pendiente</option>
+          <option value="sinancla">Sin anclas</option>
+          <option value="desborda">Desbordan su ancho</option>
+          <option value="ausente">Ausentes del archivo</option>
+          <option value="listo">Terminados</option>
+        </select>
+        <label class="marcar"><input type="checkbox" id="f-nota"> Solo con nota</label>
       </div>
       <div class="cuerpo-casillero" id="rejillas"></div>
     </section>
 
     <section class="ficha" id="ficha" aria-label="Ficha del glifo"></section>
-
   </section>
 
   <section class="bloque">
-    <h2 class="tit">Ajustes de la familia en FontForge</h2>
+    <h2 class="tit">Referencia del sistema</h2>
     <div class="tarjetas">
       <article class="tarjeta">
-        <h4>Antes de dibujar</h4>
-        <p>Fija la retícula una sola vez: unidades por em, alturas y línea base. Cambiarlas después reescala todo lo dibujado.</p>
-        <code>Element ▸ Font Info ▸ General · em 1000</code>
+        <h4>Anclas, no precompuestos</h4>
+        <p>Cada consonante y el portador llevan ancla base en dos series; cada vocal, la marca complementaria. Eso baja el inventario de cientos de combinaciones a poco más de cincuenta glifos.</p>
+        <code>Point ▸ Add Anchor · clases arriba / abajo</code>
       </article>
       <article class="tarjeta">
-        <h4>Importar el trazo</h4>
-        <p>Vectoriza la muestra fuera y trae el contorno limpio, o calca sobre la imagen de fondo en la ventana del glifo.</p>
-        <code>File ▸ Import · SVG / imagen de fondo</code>
+        <h4>La lookup que falta</h4>
+        <p>Las clases de anclaje solo funcionan dentro de una lookup GPOS de marca sobre base. Sin ella, las anclas quedan en el archivo pero no salen en la fuente generada.</p>
+        <code>Font Info ▸ Lookups ▸ GPOS ▸ Mark to Base</code>
       </article>
       <article class="tarjeta">
-        <h4>Validar</h4>
-        <p>Contornos abiertos, dirección invertida o extremos faltantes rompen el render. Se revisan de golpe para toda la fuente.</p>
-        <code>Element ▸ Validation ▸ Find Problems</code>
+        <h4>Posición y giro</h4>
+        <p>Arriba o abajo codifica si la vocal se lee antes o después de la consonante, y la forma se gira 180°. Hoy hay una sola serie de diez marcas: falta decidir si el giro es glifo aparte o sustitución contextual.</p>
+        <code>10 marcas · ¿20 con la serie girada?</code>
       </article>
       <article class="tarjeta">
-        <h4>Generar</h4>
-        <p>Sube la versión en Font Info antes de exportar y conserva el archivo fuente <code>.sfd</code> junto al binario.</p>
-        <code>File ▸ Generate Fonts ▸ TrueType / OpenType</code>
+        <h4>Un código, tres escrituras</h4>
+        <p>Tierra (kapoṭa) y Agua (woʦaši) compartirán los mismos puntos de código: cambiar de escritura será cambiar de fuente. Lo que fijes aquí en el mapa PUA condiciona las otras dos.</p>
+        <code>U+E000 – U+E031 · Uso Privado</code>
       </article>
     </div>
   </section>
 
   <details class="prompt">
-    <summary>Texto para abrir un chat especializado en esta app</summary>
+    <summary>Texto para abrir un chat especializado en este trabajo</summary>
     <div class="interior">
-      <p class="apunte">Cópialo como primer mensaje de un chat nuevo y completa lo que va entre corchetes.</p>
+      <p class="apunte">Cópialo como primer mensaje de un chat nuevo. Ya lleva el estado real del archivo Shitaku 1.0.</p>
       <pre id="texto-prompt"></pre>
       <div><button class="btn" id="btn-prompt">Copiar texto</button></div>
     </div>
   </details>
 
-  <p class="apunte">El avance se guarda en el almacenamiento local de este navegador. La fuente cargada solo vive mientras la pestaña esté abierta; el respaldo JSON conserva el progreso.</p>
+  <p class="apunte">El avance manual se guarda en este navegador. La auditoría se recalcula cada vez que cargas un <code>.sfd</code>; la fuente cargada solo vive mientras la pestaña esté abierta.</p>
 </div>
 
 <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
@@ -291,129 +317,177 @@
 (function () {
   "use strict";
 
-  var ETAPAS = [
-    { id: "ref",      nombre: "Referencia",  color: "#8C8F84", tareas: ["Muestra o boceto localizado", "Trazo definido: eje, contraste y remate", "Altura y proporción confirmadas"] },
-    { id: "vector",   nombre: "Vectorizado", color: "#9C7218", tareas: ["Contorno dibujado o importado en FontForge", "Nodos reducidos a los necesarios", "Curvas sin bultos ni quiebres"] },
-    { id: "contorno", nombre: "Contornos",   color: "#B0862A", tareas: ["Element ▸ Add Extrema aplicado", "Element ▸ Correct Direction aplicado", "Element ▸ Simplify sin perder la forma", "Sin errores en Element ▸ Validation"] },
-    { id: "metricas", nombre: "Espaciado",   color: "#5E7F7A", tareas: ["Márgenes izquierdo y derecho definidos", "Probado en nnoonn / HHOOHH", "Coherente con los signos vecinos"] },
-    { id: "kerning",  nombre: "Kerning",     color: "#3F5FA8", tareas: ["Pares críticos revisados", "Asignado a una clase de kerning"] },
-    { id: "prueba",   nombre: "Prueba",      color: "#2E43C8", tareas: ["Revisado a 12, 24 y 72 px", "Impreso y revisado en papel", "Cotejado contra la muestra original"] },
-    { id: "aprobado", nombre: "Aprobado",    color: "#1F2C86", tareas: ["Visto bueno del proyecto", "Congelado para esta versión"] }
-  ];
-
+  /* ---------- inventario según la gramática §2.2.1 ---------- */
   var GRUPOS = [
-    { nombre: "Mayúsculas", chars: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("") },
-    { nombre: "Minúsculas", chars: "abcdefghijklmnopqrstuvwxyz".split("") },
-    { nombre: "Cifras", chars: "0123456789".split("") },
-    { nombre: "Acentuadas y eñe", chars: "ÁÉÍÓÚÜÑáéíóúüñ".split("") },
-    { nombre: "Puntuación y signos", chars: ".,;:¿?¡!\"'«»()-–—/…&@#%".split("") }
+    { n: 1,  nombre: "Velares",      vocal: "u", letras: ["c", "k", "q̂"] },
+    { n: 2,  nombre: "Africadas",    vocal: "o", letras: ["č", "ʦ", "ṭ"] },
+    { n: 3,  nombre: "Duras",        vocal: "ã", letras: ["p", "t", "x"] },
+    { n: 4,  nombre: "Silbantes",    vocal: "a", letras: ["š", "s", "z"] },
+    { n: 5,  nombre: "Sonoras",      vocal: "è", letras: ["b", "g", "ǧ"] },
+    { n: 6,  nombre: "Zumbantes",    vocal: "ø", letras: ["d", "ž", "v"] },
+    { n: 7,  nombre: "Alientos",     vocal: "e", letras: ["h", "ĵ", "j"] },
+    { n: 8,  nombre: "Suaves",       vocal: "î", letras: ["f", "y", "v̌"] },
+    { n: 9,  nombre: "Nasales",      vocal: "ü", letras: ["m", "n", "ñ", "ŋ"] },
+    { n: 10, nombre: "Líquidas",     vocal: "i", letras: ["r̂", "r", "l", "ř"] },
+    { n: 11, nombre: "Aproximantes", vocal: "—", letras: ["w", "ẙ"] }
+  ];
+  var VOCALES = ["u", "o", "ã", "a", "è", "ø", "e", "î", "ü", "i"]; // secuencia maestra §1.3
+  var SIGNOS = [
+    { rom: "'", nombre: "apóstrofo" },
+    { rom: "“", nombre: "comilla" },
+    { rom: ",", nombre: "coma" },
+    { rom: ".", nombre: "punto" },
+    { rom: "◌̯", nombre: "diferenciador gráfico" }
   ];
 
-  var TODOS = [];
-  GRUPOS.forEach(function (g) { g.chars.forEach(function (c) { TODOS.push(c); }); });
-  var TOTAL_TAREAS = ETAPAS.reduce(function (n, e) { return n + e.tareas.length; }, 0);
-  var CLAVE = "tabure.fontforge.v1";
+  // Mapa PUA: portador U+E000, vocales U+E001–U+E00A, consonantes U+E00B–U+E02C,
+  // signos previstos a continuación (U+E02D–U+E031), aún sin dibujar.
+  var INV = [];
+  INV.push({ cp: "E000", rom: "Ø", tipo: "portador", grupo: 11, titulo: "portador nulo" });
+  VOCALES.forEach(function (v, i) {
+    INV.push({ cp: "E00" + (i + 1).toString(16).toUpperCase(), rom: v, tipo: "vocal", grupo: 0, titulo: "vocal " + v });
+  });
+  var cod = 0xE00B;
+  GRUPOS.forEach(function (g) {
+    g.letras.forEach(function (l) {
+      INV.push({ cp: cod.toString(16).toUpperCase(), rom: l, tipo: "consonante", grupo: g.n, titulo: "consonante " + l });
+      cod++;
+    });
+  });
+  SIGNOS.forEach(function (s) {
+    INV.push({ cp: cod.toString(16).toUpperCase(), rom: s.rom, tipo: "signo", grupo: 0, titulo: s.nombre, previsto: true });
+    cod++;
+  });
 
-  var PROMPT = [
-    "Eres mi asistente técnico para la digitalización de escrituras del proyecto Tabure: estamos convirtiendo trazos originales en una fuente tipográfica con FontForge.",
-    "",
-    "Herramienta que uso para el control: una app de una sola página (HTML autocontenido, sin dependencias externas, guarda en localStorage con la clave \"tabure.fontforge.v1\").",
-    "- Muestra un casillero con el juego de caracteres — mayúsculas, minúsculas, cifras, acentuadas y eñe, puntuación y signos — y una ficha por glifo con nota, margen izquierdo y margen derecho.",
-    "- Cada glifo avanza por siete etapas con lista de verificación: referencia, vectorizado, contornos, espaciado, kerning, prueba y aprobado. La etapa actual se deduce de la primera tarea sin marcar.",
-    "- Las tareas de contornos son las comprobaciones de FontForge: Add Extrema, Correct Direction, Simplify y Validation sin errores.",
-    "- Permite cargar un .ttf/.otf local para ver el casillero y el espécimen con la fuente real, y exporta CSV y respaldo JSON.",
-    "",
-    "Contexto del proyecto (ajústalo):",
-    "- Origen de las formas: [manuscrito, rótulo, lápida, muestra impresa…] de [fecha y procedencia].",
-    "- Estado actual: [qué llevo dibujado y qué falta].",
-    "- Retícula: unidades por em [1000/2048], altura de mayúsculas [x], altura de x [x], ascendentes y descendentes [x].",
-    "- Formatos de salida que necesito: [TTF, OTF, WOFF2] y para qué uso [web, impresión, señalética].",
-    "- Mi nivel con FontForge: [principiante / intermedio / avanzado].",
-    "",
-    "Cómo quiero que trabajes:",
-    "- Responde en español y con pasos concretos de FontForge, nombrando el menú exacto (por ejemplo Element ▸ Add Extrema) y el atajo cuando exista.",
-    "- Cuando propongas cambios a la app, entrégame el HTML completo listo para reemplazar el archivo, no fragmentos sueltos, y mantén compatible lo ya guardado; si cambia la estructura de datos, incluye la migración.",
-    "- Para decisiones de dibujo, razona sobre la forma: eje, contraste, remates, ritmo y espaciado, y dime qué mirar para comprobar el resultado.",
-    "- Si te falta un dato para decidir, pregúntamelo en vez de suponerlo.",
-    "",
-    "Primera tarea: [describe qué necesitas — por ejemplo: definir el orden de dibujo del juego básico, resolver un error de Validation, ajustar el espaciado de las redondas, planificar las clases de kerning, o agregar una función a la app]."
-  ].join("\n");
+  var POR_CP = {};
+  INV.forEach(function (g) { POR_CP[g.cp] = g; });
 
-  var datos = cargar();
-  var seleccion = "a";
-  var filtros = { etapa: "", obs: false };
+  /* ---------- instantánea de Shitaku 1.0 ---------- */
+  var AUDITORIA = {"E000":{"w":800,"cls":2,"c":2,"p":19,"bb":[79,0,974,367],"a":[["abajo","basechar"],["arriba","basechar"]]},"E001":{"w":1000,"cls":4,"c":2,"p":19,"bb":[371,499,710,757],"a":[]},"E002":{"w":1000,"cls":4,"c":1,"p":11,"bb":[430,525,692,784],"a":[["abajo","mark"]]},"E003":{"w":1000,"cls":4,"c":1,"p":9,"bb":[330,507,537,813],"a":[]},"E004":{"w":1000,"cls":4,"c":1,"p":10,"bb":[340,502,565,807],"a":[]},"E005":{"w":1000,"cls":4,"c":1,"p":23,"bb":[287,500,647,802],"a":[]},"E006":{"w":1000,"cls":4,"c":3,"p":15,"bb":[391,524,611,710],"a":[]},"E007":{"w":1000,"cls":4,"c":2,"p":10,"bb":[391,549,611,614],"a":[]},"E008":{"w":1000,"cls":4,"c":1,"p":5,"bb":[473,549,539,614],"a":[]},"E009":{"w":1000,"cls":4,"c":1,"p":12,"bb":[365,458,630,711],"a":[]},"E00A":{"w":1000,"cls":4,"c":1,"p":14,"bb":[372,505,621,671],"a":[]},"E00B":{"w":596,"cls":2,"c":1,"p":12,"bb":[7,-350,564,252],"a":[]},"E00C":{"w":727,"cls":2,"c":2,"p":17,"bb":[144,-352,701,252],"a":[]},"E00D":{"w":655,"cls":2,"c":3,"p":24,"bb":[-119,-358,624,252],"a":[]},"E00E":{"w":1000,"cls":2,"c":6,"p":66,"bb":[90,-18,497,634],"a":[]},"E00F":{"w":1000,"cls":2,"c":6,"p":83,"bb":[60,-111,505,661],"a":[]},"E010":{"w":1000,"cls":2,"c":6,"p":108,"bb":[98,-134,735,767],"a":[]},"E011":{"w":1000,"cls":2,"c":6,"p":66,"bb":[86,-66,899,478],"a":[]},"E012":{"w":1000,"cls":2,"c":6,"p":82,"bb":[157,-75,922,479],"a":[]},"E013":{"w":1000,"cls":2,"c":9,"p":94,"bb":[120,-49,1304,641],"a":[]},"E014":{"w":1000,"cls":2,"c":6,"p":84,"bb":[-431,-422,299,457],"a":[]},"E015":{"w":490,"cls":2,"c":8,"p":115,"bb":[-151,-451,1849,331],"a":[]},"E016":{"w":702,"cls":2,"c":5,"p":32,"bb":[-119,-353,739,252],"a":[]},"E017":{"w":1000,"cls":2,"c":3,"p":60,"bb":[77,4,843,618],"a":[]},"E018":{"w":1000,"cls":2,"c":6,"p":82,"bb":[60,23,1003,800],"a":[]},"E019":{"w":1000,"cls":2,"c":3,"p":67,"bb":[92,-41,1054,578],"a":[]},"E01A":{"w":1000,"cls":2,"c":3,"p":43,"bb":[25,-101,590,619],"a":[]},"E01B":{"w":1000,"cls":2,"c":3,"p":69,"bb":[67,-104,914,721],"a":[]},"E01C":{"w":1000,"cls":2,"c":3,"p":69,"bb":[52,-61,917,652],"a":[]},"E01D":{"w":1000,"cls":2,"c":3,"p":60,"bb":[91,-141,577,756],"a":[]},"E01E":{"w":1000,"cls":2,"c":6,"p":82,"bb":[115,-83,576,713],"a":[]},"E01F":{"w":1000,"cls":2,"c":3,"p":80,"bb":[50,-117,572,707],"a":[]},"E020":{"w":1000,"cls":2,"c":6,"p":52,"bb":[120,-103,789,671],"a":[]},"E021":{"w":1000,"cls":2,"c":6,"p":93,"bb":[46,-156,946,699],"a":[]},"E022":{"w":1000,"cls":2,"c":9,"p":95,"bb":[150,-125,1161,729],"a":[]},"E023":{"w":1000,"cls":2,"c":3,"p":23,"bb":[53,-84,878,730],"a":[]},"E024":{"w":1000,"cls":2,"c":6,"p":62,"bb":[101,-81,1189,711],"a":[]},"E025":{"w":1000,"cls":2,"c":3,"p":54,"bb":[93,-50,599,699],"a":[]},"E026":{"w":1000,"cls":2,"c":6,"p":97,"bb":[67,-96,1034,620],"a":[]},"E027":{"w":1000,"cls":2,"c":3,"p":55,"bb":[110,58,854,652],"a":[]},"E028":{"w":1000,"cls":2,"c":3,"p":47,"bb":[57,21,1227,582],"a":[]},"E029":{"w":1000,"cls":2,"c":3,"p":66,"bb":[279,22,1971,575],"a":[]},"E02A":{"w":1222,"cls":2,"c":1,"p":35,"bb":[-68,-58,1484,421],"a":[]},"E02B":{"w":1000,"cls":2,"c":6,"p":53,"bb":[50,-134,605,738],"a":[]},"E02C":{"w":1000,"cls":2,"c":9,"p":63,"bb":[21,-148,824,690],"a":[]}};
 
-  function nuevoRegistro() { return { checks: {}, nota: "", mi: "", md: "" }; }
+  var META = {
+    archivo: "Shitaku_1.0.sfd", fuente: "Tabureshi-Shitaku", version: "001.000",
+    ascent: 800, descent: 400, lookups: 0, cuadratica: false,
+    clasesMarca: { arriba: 10, abajo: 0 }
+  };
+
+  /* ---------- etapas ---------- */
+  var ETAPAS = [
+    { id: "trazo", nombre: "Trazo", color: "#8C8F84", tareas: [
+      { t: "Contorno dibujado en la capa Anterior", auto: "dibujado" },
+      { t: "Los cuatro parámetros gráficos resueltos: posición del secundario, elongación, reduplicación y cierre" }
+    ]},
+    { id: "contornos", nombre: "Contornos", color: "#8A6410", tareas: [
+      { t: "Element ▸ Add Extrema" },
+      { t: "Element ▸ Correct Direction" },
+      { t: "Element ▸ Simplify sin perder la forma" },
+      { t: "Sin errores en Element ▸ Validation" }
+    ]},
+    { id: "anclas", nombre: "Anclas", color: "#4A7A57", tareas: [
+      { t: "Ancla de la serie arriba", auto: "arriba" },
+      { t: "Ancla de la serie abajo", auto: "abajo" },
+      { t: "Asignada a la lookup GPOS de marca sobre base", auto: "lookup" }
+    ]},
+    { id: "espaciado", nombre: "Espaciado", color: "#3D6E5A", tareas: [
+      { t: "El dibujo cabe en el ancho declarado", auto: "ancho" },
+      { t: "Probado en secuencia con los signos vecinos" }
+    ]},
+    { id: "prueba", nombre: "Prueba", color: "#2F6B45", tareas: [
+      { t: "Compuesto con vocal arriba y con vocal abajo" },
+      { t: "Revisado a 12, 24 y 72 px" },
+      { t: "Cotejado contra el diseño original" }
+    ]},
+    { id: "cierre", nombre: "Cierre", color: "#1F4A31", tareas: [
+      { t: "Congelado para esta versión" }
+    ]}
+  ];
+
+  var CLAVE = "tabure.shitaku.v2";
+  var manual = cargar();
+  var seleccion = "E000";
+  var filtros = { estado: "", nota: false };
 
   function cargar() {
     try {
-      var crudo = localStorage.getItem(CLAVE);
-      if (crudo) {
-        var p = JSON.parse(crudo);
-        if (p && typeof p === "object") return p;
-      }
-    } catch (e) { /* sin almacenamiento: se sigue en memoria */ }
-    return semilla();
+      var c = localStorage.getItem(CLAVE);
+      if (c) { var p = JSON.parse(c); if (p && typeof p === "object") return p; }
+    } catch (e) { /* sin almacenamiento */ }
+    return {};
   }
-
-  function semilla() {
-    var d = {};
-    var planas = [];
-    ETAPAS.forEach(function (e) { e.tareas.forEach(function (_, i) { planas.push(e.id + ":" + i); }); });
-    // Un arranque realista: el juego básico en minúsculas va más adelantado que el resto.
-    var avance = { a: 15, b: 15, c: 15, d: 15, e: 15, n: 15, o: 15, h: 12, i: 12, m: 12, p: 9, q: 9, r: 9, s: 6, t: 6, u: 6,
-                   A: 6, B: 4, C: 4, D: 4, E: 4, H: 3, N: 3, O: 3, "1": 2, "0": 2, ".": 3, ",": 3 };
-    TODOS.forEach(function (c) {
-      var r = nuevoRegistro();
-      var n = avance[c] || 0;
-      for (var i = 0; i < n && i < planas.length; i++) r.checks[planas[i]] = true;
-      d[c] = r;
-    });
-    if (d.s) d.s.nota = "La espina queda pesada arriba; comparar con la muestra del rótulo.";
-    if (d.g) d.g.nota = "Decidir si la cola es cerrada o abierta antes de seguir.";
-    return d;
-  }
-
   function guardar() {
-    try { localStorage.setItem(CLAVE, JSON.stringify(datos)); }
-    catch (e) { avisar("No se pudo guardar en este navegador; descarga el respaldo JSON."); }
+    try { localStorage.setItem(CLAVE, JSON.stringify(manual)); }
+    catch (e) { avisar("No se pudo guardar en este navegador; descarga el respaldo."); }
+  }
+  function man(cp) {
+    if (!manual[cp]) manual[cp] = { checks: {}, nota: "" };
+    if (!manual[cp].checks) manual[cp].checks = {};
+    return manual[cp];
   }
 
-  function reg(c) {
-    if (!datos[c]) datos[c] = nuevoRegistro();
-    if (!datos[c].checks) datos[c].checks = {};
-    return datos[c];
+  /* ---------- evaluación automática ---------- */
+  function datos(cp) { return AUDITORIA[cp] || null; }
+
+  function autoEstado(g, clave) {
+    var d = datos(g.cp);
+    if (!d) return false;
+    var esMarca = d.cls === 4 || g.tipo === "vocal";
+    switch (clave) {
+      case "dibujado": return d.c > 0;
+      case "arriba":
+        if (esMarca) return d.a.some(function (a) { return a[0] === "arriba"; });
+        return d.a.some(function (a) { return a[0] === "arriba" && a[1] === "basechar"; });
+      case "abajo":
+        if (esMarca) return d.a.some(function (a) { return a[0] === "abajo"; });
+        return d.a.some(function (a) { return a[0] === "abajo" && a[1] === "basechar"; });
+      case "lookup": return META.lookups > 0;
+      case "ancho":
+        if (esMarca) return d.w === 0;
+        return d.bb[0] >= -20 && d.bb[2] <= d.w + 20;
+      default: return false;
+    }
   }
-  function hechas(c) {
-    var r = reg(c), n = 0;
-    ETAPAS.forEach(function (e) { e.tareas.forEach(function (_, i) { if (r.checks[e.id + ":" + i]) n++; }); });
+  function tareaHecha(g, et, i) {
+    var tarea = et.tareas[i];
+    if (tarea.auto) return autoEstado(g, tarea.auto);
+    return !!man(g.cp).checks[et.id + ":" + i];
+  }
+  function totalTareas() {
+    return ETAPAS.reduce(function (n, e) { return n + e.tareas.length; }, 0);
+  }
+  function hechas(g) {
+    var n = 0;
+    ETAPAS.forEach(function (e) { e.tareas.forEach(function (_, i) { if (tareaHecha(g, e, i)) n++; }); });
     return n;
   }
-  function etapaLista(c, e) {
-    var r = reg(c);
-    return e.tareas.every(function (_, i) { return r.checks[e.id + ":" + i]; });
-  }
-  function etapaActual(c) {
-    for (var i = 0; i < ETAPAS.length; i++) if (!etapaLista(c, ETAPAS[i])) return ETAPAS[i];
+  function etapaLista(g, e) { return e.tareas.every(function (_, i) { return tareaHecha(g, e, i); }); }
+  function etapaActual(g) {
+    for (var i = 0; i < ETAPAS.length; i++) if (!etapaLista(g, ETAPAS[i])) return ETAPAS[i];
     return null;
   }
-  function cp(c) {
-    var v = c.codePointAt(0).toString(16).toUpperCase();
-    return "U+" + ("0000" + v).slice(-4);
+  function desborda(cp) {
+    var d = datos(cp);
+    if (!d) return false;
+    if (d.cls === 4) return false;
+    return d.bb[0] < -20 || d.bb[2] > d.w + 20;
   }
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (x) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[x];
-    });
+  function sinAnclas(cp) {
+    var d = datos(cp);
+    return !!d && d.a.length === 0;
   }
 
-  var tempAviso;
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function chr(cp) { return String.fromCodePoint(parseInt(cp, 16)); }
+
+  var tAviso;
   function avisar(m) {
     var el = document.getElementById("aviso");
-    el.textContent = m;
-    el.classList.add("ver");
-    clearTimeout(tempAviso);
-    tempAviso = setTimeout(function () { el.classList.remove("ver"); }, 2400);
+    el.textContent = m; el.classList.add("ver");
+    clearTimeout(tAviso);
+    tAviso = setTimeout(function () { el.classList.remove("ver"); }, 2600);
   }
   function copiar(t, m) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -421,259 +495,473 @@
     } else { avisar("El navegador bloqueó el portapapeles; selecciona y copia a mano."); }
   }
 
-  /* ---------- indicadores ---------- */
-  function pintarKpis() {
-    var total = TODOS.length;
-    var aprobados = TODOS.filter(function (c) { return !etapaActual(c); }).length;
-    var dibujados = TODOS.filter(function (c) {
-      var e = etapaActual(c);
-      return !e || ETAPAS.indexOf(e) >= 2;
-    }).length;
-    var conNota = TODOS.filter(function (c) { return (reg(c).nota || "").trim(); }).length;
-    var tareas = TODOS.reduce(function (n, c) { return n + hechas(c); }, 0);
-    var pct = Math.round((tareas / (total * TOTAL_TAREAS)) * 100);
-
-    var items = [
-      { rot: "Glifos del juego", val: total },
-      { rot: "Avance global", val: pct + "<small>%</small>" },
-      { rot: "Dibujados", val: dibujados + "<small>/" + total + "</small>" },
-      { rot: "Aprobados", val: aprobados + "<small>/" + total + "</small>" },
-      { rot: "Con nota abierta", val: conNota, aviso: conNota > 0 }
+  /* ---------- cabecera del archivo ---------- */
+  function pintarArchivo() {
+    var em = META.ascent + META.descent;
+    var campos = [
+      ["Archivo", META.archivo],
+      ["Fuente", META.fuente + " " + META.version],
+      ["Em", em + " (asc " + META.ascent + " / desc " + META.descent + ")"],
+      ["Curvas", META.cuadratica ? "cuadráticas" : "cúbicas"],
+      ["Glifos", Object.keys(AUDITORIA).length + " de " + INV.length],
+      ["Lookups GPOS", META.lookups]
     ];
-    document.getElementById("kpis").innerHTML = items.map(function (k) {
-      return '<div class="kpi' + (k.aviso ? " aviso" : "") + '"><span class="rot">' + k.rot + '</span><span class="val">' + k.val + "</span></div>";
+    document.getElementById("archivo").innerHTML = campos.map(function (c) {
+      return "<div><span class=\"et\">" + c[0] + "</span><b>" + esc(c[1]) + "</b></div>";
     }).join("");
   }
 
-  function pintarPista() {
-    var cuenta = {};
-    ETAPAS.forEach(function (e) { cuenta[e.id] = 0; });
-    cuenta.listo = 0;
-    TODOS.forEach(function (c) {
-      var e = etapaActual(c);
-      cuenta[e ? e.id : "listo"]++;
-    });
-    var cubos = ETAPAS.map(function (e) { return { nombre: e.nombre, color: e.color, n: cuenta[e.id] }; });
-    cubos.push({ nombre: "Completado", color: "#151C4D", n: cuenta.listo });
+  /* ---------- indicadores ---------- */
+  function pintarKpis() {
+    var enArchivo = INV.filter(function (g) { return datos(g.cp); }).length;
+    var bases = INV.filter(function (g) { return g.tipo === "consonante" || g.tipo === "portador"; });
+    var conAncla = bases.filter(function (g) { return autoEstado(g, "arriba") && autoEstado(g, "abajo"); }).length;
+    var vocales = INV.filter(function (g) { return g.tipo === "vocal"; });
+    var marcasOk = vocales.filter(function (g) { return datos(g.cp) && datos(g.cp).a.length > 0; }).length;
+    var desb = INV.filter(function (g) { return desborda(g.cp); }).length;
+    var terminados = INV.filter(function (g) { return datos(g.cp) && !etapaActual(g); }).length;
 
-    document.getElementById("pista").innerHTML = cubos.map(function (b) {
-      return '<span style="flex-grow:' + b.n + ';background:' + b.color + '" title="' + esc(b.nombre) + ": " + b.n + '"></span>';
+    var items = [
+      { rot: "Glifos en el archivo", val: enArchivo + "<small>/" + INV.length + "</small>", mal: enArchivo < INV.length },
+      { rot: "Bases con las dos anclas", val: conAncla + "<small>/" + bases.length + "</small>", mal: conAncla < bases.length },
+      { rot: "Vocales con ancla de marca", val: marcasOk + "<small>/" + vocales.length + "</small>", mal: marcasOk < vocales.length },
+      { rot: "Desbordan su ancho", val: desb, medio: desb > 0 },
+      { rot: "Terminados", val: terminados + "<small>/" + INV.length + "</small>" }
+    ];
+    document.getElementById("kpis").innerHTML = items.map(function (k) {
+      return '<div class="kpi' + (k.mal ? " mal" : k.medio ? " medio" : "") + '"><span class="rot">' + k.rot + '</span><span class="val">' + k.val + "</span></div>";
     }).join("");
-    document.getElementById("leyenda").innerHTML = cubos.map(function (b) {
-      return '<div><i style="background:' + b.color + '"></i>' + esc(b.nombre) + " <b>" + b.n + "</b></div>";
+  }
+
+  /* ---------- hallazgos ---------- */
+  function pintarHallazgos() {
+    var h = [];
+    var bases = INV.filter(function (g) { return g.tipo === "consonante" || g.tipo === "portador"; });
+    var faltanBase = bases.filter(function (g) { return datos(g.cp) && !(autoEstado(g, "arriba") && autoEstado(g, "abajo")); });
+    var vocales = INV.filter(function (g) { return g.tipo === "vocal"; });
+    var faltanMarca = vocales.filter(function (g) { return datos(g.cp) && datos(g.cp).a.length === 0; });
+    var desb = INV.filter(function (g) { return desborda(g.cp); });
+    var marcasAncho = vocales.filter(function (g) { var d = datos(g.cp); return d && d.w !== 0; });
+    var ausentes = INV.filter(function (g) { return !datos(g.cp); });
+
+    if (META.lookups === 0) {
+      h.push({ s: "bloq", t: "No hay ninguna lookup GPOS en el archivo. Las clases de anclaje <b>arriba</b> y <b>abajo</b> existen pero no cuelgan de ninguna subtabla, así que la fuente generada no colocará ninguna vocal.",
+        via: "Element ▸ Font Info ▸ Lookups ▸ GPOS ▸ Add Lookup ▸ Mark to Base · luego asignar las dos clases a su subtabla" });
+    }
+    if (faltanBase.length) {
+      h.push({ s: "bloq", t: "<b>" + faltanBase.length + "</b> de " + bases.length + " bases sin las dos anclas. Sin ancla base, la vocal no tiene dónde engancharse: " + muestra(faltanBase) + ".",
+        via: "Abrir el glifo ▸ Point ▸ Add Anchor Point ▸ clase arriba / abajo, tipo base" });
+    }
+    if (faltanMarca.length) {
+      h.push({ s: "bloq", t: "<b>" + faltanMarca.length + "</b> de " + vocales.length + " vocales sin ancla de marca: " + muestra(faltanMarca) + ".",
+        via: "Abrir el glifo ▸ Point ▸ Add Anchor Point ▸ tipo mark" });
+    }
+    if (marcasAncho.length) {
+      h.push({ s: "aviso", t: "<b>" + marcasAncho.length + "</b> vocales llevan avance de 1000 unidades. Una marca combinante debe tener avance 0, o cada vocal empujará el texto un em a la derecha.",
+        via: "Seleccionar las diez vocales ▸ Metrics ▸ Set Width ▸ 0" });
+    }
+    if (desb.length) {
+      h.push({ s: "aviso", t: "<b>" + desb.length + "</b> glifos se salen de su ancho declarado: " + muestra(desb) + ". En texto seguido se van a montar unos sobre otros.",
+        via: "Metrics ▸ Auto Width, o ajustar a mano en la ventana de métricas" });
+    }
+    if (META.clasesMarca.abajo === 0 && META.clasesMarca.arriba > 0) {
+      h.push({ s: "aviso", t: "La clase de acoplamiento de marcas <b>arriba</b> reúne las diez vocales y <b>abajo</b> está vacía. Si la misma vocal puede ir arriba o abajo según la secuencia de lectura, conviene revisar ese reparto antes de sumar más glifos.",
+        via: "Element ▸ Font Info ▸ Mark Classes" });
+    }
+    if (ausentes.length) {
+      h.push({ s: "nota", t: "Faltan <b>" + ausentes.length + "</b> signos del inventario de §2.2.1: " + ausentes.map(function (g) { return "<b>" + esc(g.titulo) + "</b>"; }).join(", ") + ".",
+        via: "Encoding ▸ ir a U+E02D y siguientes" });
+    }
+    var em = META.ascent + META.descent;
+    if (em !== 1000 && em !== 2048) {
+      h.push({ s: "nota", t: "El em vale <b>" + em + "</b> unidades (800 + 400), fuera de los valores habituales de 1000 y 2048. Es legal, pero si alguna vez conviene cambiarlo, hacerlo ahora cuesta mucho menos que con las tres escrituras dibujadas.",
+        via: "Element ▸ Font Info ▸ General ▸ Em Size, con Scale Outlines marcado" });
+    }
+    if (!META.cuadratica) {
+      h.push({ s: "nota", t: "Los contornos son cúbicos. La salida natural es OTF/CFF; para TTF, FontForge convertirá a cuadráticas al generar y conviene revisar el resultado.",
+        via: "File ▸ Generate Fonts ▸ OpenType (CFF)" });
+    }
+    if (!h.length) h.push({ s: "ok", t: "Sin hallazgos automáticos sobre este archivo.", via: "" });
+
+    document.getElementById("hallazgos").innerHTML = h.map(function (x) {
+      var et = { bloq: "bloquea", aviso: "aviso", nota: "nota", ok: "al día" }[x.s];
+      return '<div class="hall ' + x.s + '"><span class="sev">' + et + "</span><p>" + x.t + "</p>" +
+        (x.via ? '<span class="via">' + esc(x.via) + "</span>" : "") + "</div>";
     }).join("");
+  }
+  function muestra(lista) {
+    var n = lista.slice(0, 8).map(function (g) { return "<b>" + esc(g.rom) + "</b>"; }).join(" ");
+    return n + (lista.length > 8 ? " y " + (lista.length - 8) + " más" : "");
   }
 
   /* ---------- casillero ---------- */
-  function pasaFiltro(c) {
-    if (filtros.obs && !(reg(c).nota || "").trim()) return false;
-    if (filtros.etapa) {
-      var e = etapaActual(c);
-      if ((e ? e.id : "listo") !== filtros.etapa) return false;
+  function pasa(g) {
+    var m = man(g.cp);
+    if (filtros.nota && !(m.nota || "").trim()) return false;
+    switch (filtros.estado) {
+      case "pend": return !!etapaActual(g);
+      case "sinancla": return sinAnclas(g.cp);
+      case "desborda": return desborda(g.cp);
+      case "ausente": return !datos(g.cp);
+      case "listo": return !etapaActual(g);
+      default: return true;
     }
-    return true;
   }
 
   function pintarCasillero() {
-    var cont = document.getElementById("rejillas");
-    var visibles = 0;
-    var html = GRUPOS.map(function (g) {
-      var chars = g.chars.filter(pasaFiltro);
-      if (!chars.length) return "";
-      visibles += chars.length;
-      var celdas = chars.map(function (c) {
-        var r = reg(c);
-        var e = etapaActual(c);
-        var pct = Math.round((hechas(c) / TOTAL_TAREAS) * 100);
-        var color = e ? e.color : "#151C4D";
-        var nota = (r.nota || "").trim() ? '<span class="obs" title="Tiene nota"></span>' : "";
-        return '<button type="button" class="celda' + (e ? "" : " completa") + '" data-c="' + esc(c) + '"' +
-          ' aria-pressed="' + (c === seleccion) + '" title="' + esc(c) + " · " + cp(c) + " · " + esc(e ? e.nombre : "Completado") + '">' +
-          '<span class="g">' + esc(c) + "</span>" + nota +
-          '<span class="barra"><b style="width:' + pct + "%;background:" + color + '"></b></span></button>';
+    var secciones = [];
+    secciones.push({ titulo: "Portador y vocales", meta: "diacríticos · secuencia maestra u–o–ã–a–è–ø–e–î–ü–i",
+      items: INV.filter(function (g) { return g.tipo === "portador" || g.tipo === "vocal"; }) });
+    GRUPOS.forEach(function (gr) {
+      secciones.push({ titulo: "Grupo " + gr.n + " · " + gr.nombre, vocal: gr.vocal,
+        items: INV.filter(function (g) { return g.tipo === "consonante" && g.grupo === gr.n; }) });
+    });
+    secciones.push({ titulo: "Signos", meta: "puntuación y diferenciador gráfico",
+      items: INV.filter(function (g) { return g.tipo === "signo"; }) });
+
+    var vis = 0;
+    var html = secciones.map(function (s) {
+      var items = s.items.filter(pasa);
+      if (!items.length) return "";
+      vis += items.length;
+      var celdas = items.map(function (g) {
+        var d = datos(g.cp);
+        var e = etapaActual(g);
+        var pct = Math.round((hechas(g) / totalTareas()) * 100);
+        var m = man(g.cp);
+        var senal = "";
+        if (!d) senal = '<span class="senal" style="background:var(--tinta-f)" title="ausente del archivo"></span>';
+        else if (sinAnclas(g.cp)) senal = '<span class="senal" style="background:var(--rojo)" title="sin anclas"></span>';
+        else if (desborda(g.cp)) senal = '<span class="senal" style="background:var(--ambar)" title="desborda su ancho"></span>';
+        else if ((m.nota || "").trim()) senal = '<span class="senal" style="background:var(--savia)" title="con nota"></span>';
+        return '<button type="button" class="celda' + (d ? "" : " ausente") + '" data-cp="' + g.cp + '"' +
+          ' aria-pressed="' + (g.cp === seleccion) + '" title="' + esc(g.titulo) + " · U+" + g.cp + " · " + esc(e ? e.nombre : "terminado") + '">' +
+          '<span class="gl">' + (d ? esc(chr(g.cp)) : "·") + "</span>" +
+          '<span class="rom">' + esc(g.rom) + "</span>" +
+          '<span class="cod">' + g.cp + "</span>" + senal +
+          '<span class="barra"><b style="width:' + pct + "%;background:" + (e ? e.color : "#1F4A31") + '"></b></span></button>';
       }).join("");
-      return '<div class="grupo"><h3>' + esc(g.nombre) + " · " + chars.length + "</h3><div class=\"rejilla\">" + celdas + "</div></div>";
+      return '<div class="grupo"><h3>' + esc(s.titulo) +
+        (s.vocal ? ' <span class="voc">vocal ' + esc(s.vocal) + "</span>" : "") +
+        (s.meta ? " <em>" + esc(s.meta) + "</em>" : "") +
+        '</h3><div class="rejilla">' + celdas + "</div></div>";
     }).join("");
 
-    cont.innerHTML = html || '<p class="vacio">Ningún glifo coincide con el filtro.</p>';
-    document.getElementById("conteo").textContent = visibles + " de " + TODOS.length + " glifos";
+    document.getElementById("rejillas").innerHTML = html || '<p class="vacio">Ningún glifo coincide con el filtro.</p>';
+    document.getElementById("conteo").textContent = vis + " de " + INV.length + " signos";
   }
 
   /* ---------- ficha ---------- */
   function pintarFicha() {
-    var ficha = document.getElementById("ficha");
-    var c = seleccion;
-    var r = reg(c);
-    var e = etapaActual(c);
+    var g = POR_CP[seleccion];
+    var d = datos(g.cp);
+    var m = man(g.cp);
+    var e = etapaActual(g);
+    var grupo = GRUPOS.filter(function (x) { return x.n === g.grupo; })[0];
 
     var etapasHtml = ETAPAS.map(function (et) {
-      var lista = etapaLista(c, et);
-      var n = et.tareas.filter(function (_, i) { return r.checks[et.id + ":" + i]; }).length;
+      var lista = etapaLista(g, et);
+      var n = et.tareas.filter(function (_, i) { return tareaHecha(g, et, i); }).length;
       var tareas = et.tareas.map(function (t, i) {
-        var k = et.id + ":" + i;
-        var id = "t-" + cp(c).slice(2) + "-" + et.id + "-" + i;
-        var texto = esc(t).replace(/(Element ▸ [A-Za-z ]+)/, "<code>$1</code>");
-        return '<div class="tarea"><input type="checkbox" id="' + id + '" data-tarea="' + k + '"' + (r.checks[k] ? " checked" : "") + '><label for="' + id + '">' + texto + "</label></div>";
+        var id = "t-" + g.cp + "-" + et.id + "-" + i;
+        var marcada = tareaHecha(g, et, i);
+        var txt = esc(t.t).replace(/((?:Element|Point|Metrics) ▸ [^,.]+)/, "<code>$1</code>");
+        return '<div class="tarea"><input type="checkbox" id="' + id + '"' + (marcada ? " checked" : "") +
+          (t.auto ? " disabled" : ' data-tarea="' + et.id + ":" + i + '"') + '>' +
+          '<label for="' + id + '">' + txt + (t.auto ? '<span class="auto">del archivo</span>' : "") + "</label></div>";
       }).join("");
-      return '<div class="etapa' + (lista ? " lista" : "") + '"><h4><i style="background:' + et.color + '"></i>' + esc(et.nombre) + "<em>" + n + "/" + et.tareas.length + "</em></h4>" + tareas + "</div>";
+      return '<div class="etapa' + (lista ? " lista" : "") + '"><h4><i style="background:' + et.color + '"></i>' +
+        esc(et.nombre) + "<em>" + n + "/" + et.tareas.length + "</em></h4>" + tareas + "</div>";
     }).join("");
 
-    ficha.innerHTML =
-      '<header><h2 class="tit">Glifo ' + esc(c) + '</h2><span class="apunte">' + esc(e ? e.nombre : "Completado") + "</span></header>" +
+    var datosHtml = d ? [
+      ["Ancho", d.w + (d.cls === 4 && d.w !== 0 ? " ⚠" : ""), d.cls === 4 && d.w !== 0],
+      ["Contornos", d.c, false],
+      ["Puntos", d.p, false],
+      ["Caja", d.bb[0] + "," + d.bb[1] + " → " + d.bb[2] + "," + d.bb[3], desborda(g.cp)],
+      ["Clase", d.cls === 4 ? "marca" : "base", false],
+      ["Anclas", d.a.length ? d.a.map(function (a) { return a[0] + "/" + (a[1] === "mark" ? "marca" : "base"); }).join(" · ") : "ninguna", d.a.length === 0]
+    ].map(function (x) {
+      return '<div><span class="et">' + x[0] + '</span><div class="vv' + (x[2] ? " mal" : "") + '">' + esc(x[1]) + "</div></div>";
+    }).join("") : '<div><span class="et">Estado</span><div class="vv mal">ausente del archivo</div></div>';
+
+    document.getElementById("ficha").innerHTML =
+      '<header><h2 class="tit">' + esc(g.titulo) + '</h2><span class="apunte">U+' + g.cp + " · " + esc(e ? e.nombre : "terminado") + "</span></header>" +
       '<div class="cuerpo">' +
-        '<div class="glifo-grande"><span class="g">' + esc(c) + "</span><dl>" +
-          "<dt>Unicode</dt><dd>" + cp(c) + "</dd>" +
-          "<dt>Avance</dt><dd>" + hechas(c) + "/" + TOTAL_TAREAS + "</dd>" +
-          "<dt>Etapa</dt><dd>" + esc(e ? e.nombre : "completado") + "</dd>" +
-        "</dl></div>" +
-        '<div class="par">' +
-          '<label class="campo"><span>Margen izquierdo</span><input type="number" data-f="mi" value="' + esc(r.mi) + '" placeholder="unidades"></label>' +
-          '<label class="campo"><span>Margen derecho</span><input type="number" data-f="md" value="' + esc(r.md) + '" placeholder="unidades"></label>' +
-        "</div>" +
-        '<label class="campo"><span>Nota de dibujo</span><textarea data-f="nota" placeholder="Dudas de forma, ajustes pendientes, referencias a la muestra…">' + esc(r.nota) + "</textarea></label>" +
+        '<div class="retrato"><span class="gl">' + (d ? esc(chr(g.cp)) : "") + '</span><div><div class="rom">' + esc(g.rom) + "</div>" +
+          '<div class="apunte">' + esc(grupo ? "grupo " + grupo.n + " · " + grupo.nombre + " · vocal " + grupo.vocal : (g.tipo === "vocal" ? "vocal diacrítica" : g.tipo)) + "</div></div></div>" +
+        '<div class="datos">' + datosHtml + "</div>" +
+        '<label class="campo" style="display:flex;flex-direction:column;gap:4px"><span class="et" style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-f)">Nota de dibujo</span>' +
+          '<textarea data-nota placeholder="Dudas de forma, decisiones pendientes, referencias…">' + esc(m.nota) + "</textarea></label>" +
         "<div>" + etapasHtml + "</div>" +
       "</div>" +
-      '<div class="pie-ficha"><span class="apunte">' + hechas(c) + " de " + TOTAL_TAREAS + ' tareas</span><button class="btn" id="btn-reinicia">Reiniciar este glifo</button></div>';
+      '<div class="pie-ficha"><span class="apunte">' + hechas(g) + " de " + totalTareas() + " tareas</span>" +
+        '<button class="btn" id="btn-limpia">Borrar marcas manuales</button></div>';
 
-    ficha.querySelectorAll("[data-f]").forEach(function (inp) {
-      inp.addEventListener("input", function () {
-        r[inp.getAttribute("data-f")] = inp.value;
-        guardar();
-        pintarKpis();
-        pintarCasillero();
+    var ta = document.querySelector("#ficha [data-nota]");
+    ta.addEventListener("input", function () { m.nota = ta.value; guardar(); pintarCasillero(); });
+    document.querySelectorAll("#ficha [data-tarea]").forEach(function (b) {
+      b.addEventListener("change", function () {
+        var k = b.getAttribute("data-tarea");
+        if (b.checked) m.checks[k] = true; else delete m.checks[k];
+        guardar(); pintarTodo();
       });
     });
-    ficha.querySelectorAll("[data-tarea]").forEach(function (box) {
-      box.addEventListener("change", function () {
-        var k = box.getAttribute("data-tarea");
-        if (box.checked) r.checks[k] = true; else delete r.checks[k];
-        guardar();
-        pintarTodo();
-      });
-    });
-    document.getElementById("btn-reinicia").addEventListener("click", function () {
-      if (!confirm("¿Borrar el avance del glifo " + c + "?")) return;
-      r.checks = {};
-      guardar();
-      pintarTodo();
-      avisar("Glifo " + c + " reiniciado");
+    document.getElementById("btn-limpia").addEventListener("click", function () {
+      m.checks = {}; guardar(); pintarTodo(); avisar("Marcas manuales borradas en " + g.rom);
     });
   }
 
-  function pintarTodo() {
-    pintarKpis();
-    pintarPista();
-    pintarCasillero();
-    pintarFicha();
+  /* ---------- conversor ---------- */
+  var ROM = {};
+  INV.forEach(function (g) { if (g.tipo === "consonante" || g.tipo === "vocal") ROM[g.rom.normalize("NFC")] = g; });
+  var LLAVES = Object.keys(ROM).sort(function (a, b) { return b.length - a.length; });
+  var PORTADOR = POR_CP.E000;
+
+  function convertir(txt) {
+    var s = txt.normalize("NFC");
+    var salida = [], puntos = [], pendientes = [], i = 0, previaBase = false;
+    while (i < s.length) {
+      var hit = null;
+      for (var k = 0; k < LLAVES.length; k++) {
+        if (s.substr(i, LLAVES[k].length) === LLAVES[k]) { hit = LLAVES[k]; break; }
+      }
+      if (!hit) {
+        var ch = s[i];
+        if (/\s/.test(ch)) { salida.push(ch); puntos.push("·"); }
+        else { salida.push(ch); puntos.push("(" + ch + ")"); if (pendientes.indexOf(ch) < 0) pendientes.push(ch); }
+        previaBase = false;
+        i += 1;
+        continue;
+      }
+      var g = ROM[hit];
+      if (g.tipo === "vocal") {
+        if (!previaBase) {
+          salida.push(chr(PORTADOR.cp)); puntos.push("E000");
+        }
+        salida.push(chr(g.cp)); puntos.push(g.cp);
+        previaBase = false;
+      } else {
+        salida.push(chr(g.cp)); puntos.push(g.cp);
+        previaBase = true;
+      }
+      i += hit.length;
+    }
+    return { texto: salida.join(""), puntos: puntos.join(" "), pendientes: pendientes };
   }
 
-  /* ---------- eventos ---------- */
-  document.getElementById("rejillas").addEventListener("click", function (ev) {
-    var btn = ev.target.closest(".celda");
-    if (!btn) return;
-    seleccion = btn.getAttribute("data-c");
-    pintarCasillero();
-    pintarFicha();
-    if (window.innerWidth <= 940) document.getElementById("ficha").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-
-  var selEtapa = document.getElementById("f-etapa");
-  selEtapa.innerHTML = '<option value="">Todas las etapas</option>' +
-    ETAPAS.map(function (e) { return '<option value="' + e.id + '">' + esc(e.nombre) + "</option>"; }).join("") +
-    '<option value="listo">Completado</option>';
-  selEtapa.addEventListener("change", function (ev) { filtros.etapa = ev.target.value; pintarCasillero(); });
-  document.getElementById("f-obs").addEventListener("change", function (ev) { filtros.obs = ev.target.checked; pintarCasillero(); });
-
-  /* espécimen */
-  var linea = document.getElementById("linea-muestra");
-  document.getElementById("texto-muestra").addEventListener("input", function (ev) {
-    linea.textContent = ev.target.value || "Tabure";
-  });
-  linea.textContent = document.getElementById("texto-muestra").value;
-  var rango = document.getElementById("rango-tam");
-  rango.addEventListener("input", function () {
-    linea.style.fontSize = rango.value + "px";
-    document.getElementById("tam-val").textContent = rango.value + " px";
-  });
-
-  document.getElementById("btn-fuente").addEventListener("click", function () {
-    document.getElementById("file-fuente").click();
-  });
-  document.getElementById("file-fuente").addEventListener("change", function (ev) {
-    var f = ev.target.files[0];
-    if (!f) return;
-    f.arrayBuffer().then(function (buf) {
-      var cara = new FontFace("TabureLocal", buf);
-      return cara.load();
-    }).then(function (cara) {
-      document.fonts.add(cara);
-      document.documentElement.style.setProperty("--muestra", '"TabureLocal", ' + getComputedStyle(document.documentElement).getPropertyValue("--serif"));
-      document.getElementById("estado-fuente").textContent = f.name;
-      avisar("Fuente cargada: " + f.name);
-    }).catch(function () {
-      avisar("No se pudo leer esa fuente. Prueba con un .ttf, .otf o .woff generado desde FontForge.");
-    });
-    ev.target.value = "";
-  });
-
-  /* exportar / importar */
-  function descargar(nombre, texto, tipo) {
-    var blob = new Blob([texto], { type: tipo });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url; a.download = nombre;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  function pintarConversor() {
+    var r = convertir(document.getElementById("entrada").value);
+    document.getElementById("salida").textContent = r.texto;
+    document.getElementById("puntos").textContent = r.puntos;
+    var nota = "";
+    if (r.pendientes.length) nota = "Sin codificar todavía: " + r.pendientes.join(" ");
+    else if (!document.body.classList.contains("con-fuente")) nota = "Carga la fuente para ver el resultado.";
+    document.getElementById("nota-conv").textContent = nota;
+    return r;
   }
 
-  document.getElementById("btn-csv").addEventListener("click", function () {
-    var cab = ["glifo", "unicode", "grupo", "etapa_actual", "avance_pct", "margen_izq", "margen_der", "nota"];
-    var filas = [];
-    GRUPOS.forEach(function (g) {
-      g.chars.forEach(function (c) {
-        var r = reg(c), e = etapaActual(c);
-        filas.push([c, cp(c), g.nombre, e ? e.nombre : "Completado",
-          Math.round((hechas(c) / TOTAL_TAREAS) * 100), r.mi, r.md, (r.nota || "").replace(/\s+/g, " ")]);
+  var teclado = document.getElementById("teclado");
+  teclado.innerHTML = ["q̂", "č", "ʦ", "ṭ", "š", "ǧ", "ž", "v̌", "ñ", "ŋ", "r̂", "ř", "ẙ", "ã", "è", "ø", "î", "ü"]
+    .map(function (c) { return "<button type=\"button\" data-ins=\"" + c + "\">" + c + "</button>"; }).join("");
+  teclado.addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-ins]");
+    if (!b) return;
+    var inp = document.getElementById("entrada");
+    var p = inp.selectionStart || inp.value.length;
+    inp.value = inp.value.slice(0, p) + b.getAttribute("data-ins") + inp.value.slice(inp.selectionEnd || p);
+    inp.focus();
+    inp.selectionStart = inp.selectionEnd = p + b.getAttribute("data-ins").length;
+    pintarConversor();
+  });
+  document.getElementById("entrada").addEventListener("input", pintarConversor);
+  document.getElementById("btn-copiar").addEventListener("click", function () {
+    copiar(convertir(document.getElementById("entrada").value).texto, "Texto en šitakü copiado");
+  });
+
+  /* ---------- carga de .sfd ---------- */
+  function leerSfd(txt) {
+    var nuevo = {};
+    var re = /StartChar: (\S+)\n([\s\S]*?)EndChar/g, mm;
+    while ((mm = re.exec(txt))) {
+      var nombre = mm[1], cuerpo = mm[2];
+      var fore = /\nFore\nSplineSet\n([\s\S]*?)EndSplineSet/.exec(cuerpo);
+      var contornos = 0, puntos = 0, xs = [], ys = [];
+      if (fore) {
+        fore[1].split("\n").forEach(function (ln) {
+          var t = ln.trim().split(/\s+/);
+          if (t.length >= 3 && t[t.length - 2] === "m") { contornos++; puntos++; xs.push(+t[0]); ys.push(+t[1]); }
+          else if (t.length >= 3 && t[t.length - 2] === "l") { puntos++; xs.push(+t[0]); ys.push(+t[1]); }
+          else if (t.length >= 7 && t[t.length - 2] === "c") { puntos++; xs.push(+t[4]); ys.push(+t[5]); }
+        });
+      }
+      var anc = [], ar = /AnchorPoint: "([^"]+)" \S+ \S+ (\w+)/g, am;
+      while ((am = ar.exec(cuerpo))) anc.push([am[1], am[2]]);
+      var w = /Width: (\S+)/.exec(cuerpo);
+      var cls = /GlyphClass: (\S+)/.exec(cuerpo);
+      var cp = /^uni([0-9A-Fa-f]{4})$/.exec(nombre);
+      var clave = cp ? cp[1].toUpperCase() : nombre;
+      nuevo[clave] = {
+        w: w ? parseInt(w[1], 10) : 0,
+        cls: cls ? parseInt(cls[1], 10) : 2,
+        c: contornos, p: puntos,
+        bb: xs.length ? [Math.round(Math.min.apply(null, xs)), Math.round(Math.min.apply(null, ys)),
+                         Math.round(Math.max.apply(null, xs)), Math.round(Math.max.apply(null, ys))] : [0, 0, 0, 0],
+        a: anc
+      };
+    }
+    if (!Object.keys(nuevo).length) throw new Error("sin glifos");
+
+    var meta = {
+      fuente: (/\nFontName: (.+)/.exec(txt) || [, "?"])[1].trim(),
+      version: (/\nVersion: (.+)/.exec(txt) || [, "?"])[1].trim(),
+      ascent: parseInt((/\nAscent: (\d+)/.exec(txt) || [, 0])[1], 10),
+      descent: parseInt((/\nDescent: (\d+)/.exec(txt) || [, 0])[1], 10),
+      lookups: (txt.match(/^Lookup: /gm) || []).length,
+      cuadratica: /^Layer: 1 1 /m.test(txt),
+      clasesMarca: { arriba: 0, abajo: 0 }
+    };
+    var mc = /MarkAttachClasses: \d+\n([\s\S]*?)\nDEI:/.exec(txt);
+    if (mc) {
+      mc[1].split("\n").forEach(function (ln) {
+        var q = /^"([^"]+)" \d+ ?(.*)$/.exec(ln.trim());
+        if (q && meta.clasesMarca.hasOwnProperty(q[1])) {
+          meta.clasesMarca[q[1]] = q[2].trim() ? q[2].trim().split(/\s+/).length : 0;
+        }
       });
-    });
-    var csv = [cab].concat(filas).map(function (f) {
-      return f.map(function (x) { return '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"'; }).join(",");
-    }).join("\r\n");
-    descargar("tabure-glifos.csv", "﻿" + csv, "text/csv;charset=utf-8");
-    avisar("CSV descargado");
-  });
+    }
+    return { glifos: nuevo, meta: meta };
+  }
 
-  document.getElementById("btn-json").addEventListener("click", function () {
-    descargar("tabure-glifos-respaldo.json", JSON.stringify(datos, null, 2), "application/json");
-    avisar("Respaldo descargado");
-  });
-
-  document.getElementById("btn-importar").addEventListener("click", function () {
-    document.getElementById("file-importar").click();
-  });
-  document.getElementById("file-importar").addEventListener("change", function (ev) {
+  document.getElementById("btn-sfd").addEventListener("click", function () { document.getElementById("file-sfd").click(); });
+  document.getElementById("file-sfd").addEventListener("change", function (ev) {
     var f = ev.target.files[0];
     if (!f) return;
     var lector = new FileReader();
     lector.onload = function () {
       try {
-        var p = JSON.parse(lector.result);
-        if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error("formato");
-        datos = p;
-        guardar();
+        var r = leerSfd(lector.result);
+        AUDITORIA = r.glifos;
+        META = { archivo: f.name, fuente: r.meta.fuente, version: r.meta.version, ascent: r.meta.ascent,
+                 descent: r.meta.descent, lookups: r.meta.lookups, cuadratica: r.meta.cuadratica, clasesMarca: r.meta.clasesMarca };
         pintarTodo();
-        avisar("Avance importado");
+        avisar("Auditado " + f.name + ": " + Object.keys(AUDITORIA).length + " glifos");
       } catch (e) {
-        avisar("El archivo no tiene el formato del respaldo JSON de esta app.");
+        avisar("No pude leer ese archivo como SFD de FontForge.");
       }
       ev.target.value = "";
     };
     lector.readAsText(f);
   });
 
+  /* ---------- fuente ---------- */
+  document.getElementById("btn-fuente").addEventListener("click", function () { document.getElementById("file-fuente").click(); });
+  document.getElementById("file-fuente").addEventListener("change", function (ev) {
+    var f = ev.target.files[0];
+    if (!f) return;
+    f.arrayBuffer().then(function (buf) { return new FontFace("ShitakuLocal", buf).load(); })
+      .then(function (cara) {
+        document.fonts.add(cara);
+        document.documentElement.style.setProperty("--muestra", '"ShitakuLocal", ' + getComputedStyle(document.documentElement).getPropertyValue("--serif"));
+        document.body.classList.add("con-fuente");
+        document.getElementById("estado-fuente").textContent = f.name;
+        pintarConversor();
+        avisar("Fuente cargada: " + f.name);
+      }).catch(function () {
+        avisar("No se pudo leer esa fuente. Genera un .ttf o .otf desde File ▸ Generate Fonts.");
+      });
+    ev.target.value = "";
+  });
+
+  /* ---------- exportar ---------- */
+  function descargar(nombre, texto, tipo) {
+    var b = new Blob([texto], { type: tipo });
+    var u = URL.createObjectURL(b);
+    var a = document.createElement("a");
+    a.href = u; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 1000);
+  }
+  document.getElementById("btn-csv").addEventListener("click", function () {
+    var cab = ["codigo", "romanizacion", "tipo", "grupo", "en_archivo", "ancho", "contornos", "puntos", "caja", "anclas", "etapa_actual", "avance_pct", "nota"];
+    var filas = INV.map(function (g) {
+      var d = datos(g.cp), e = etapaActual(g), m = man(g.cp);
+      return ["U+" + g.cp, g.rom, g.tipo, g.grupo || "", d ? "sí" : "no", d ? d.w : "", d ? d.c : "", d ? d.p : "",
+        d ? d.bb.join(" ") : "", d ? d.a.map(function (a) { return a[0] + "/" + a[1]; }).join(" ") : "",
+        e ? e.nombre : "terminado", Math.round((hechas(g) / totalTareas()) * 100), (m.nota || "").replace(/\s+/g, " ")];
+    });
+    var csv = [cab].concat(filas).map(function (f) {
+      return f.map(function (x) { return '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"'; }).join(",");
+    }).join("\r\n");
+    descargar("tabure-shitaku-glifos.csv", "﻿" + csv, "text/csv;charset=utf-8");
+    avisar("CSV descargado");
+  });
+  document.getElementById("btn-json").addEventListener("click", function () {
+    descargar("tabure-shitaku-avance.json", JSON.stringify(manual, null, 2), "application/json");
+    avisar("Respaldo descargado");
+  });
+  document.getElementById("btn-json").addEventListener("dblclick", function () { document.getElementById("file-json").click(); });
+  document.getElementById("file-json").addEventListener("change", function (ev) {
+    var f = ev.target.files[0];
+    if (!f) return;
+    var l = new FileReader();
+    l.onload = function () {
+      try { manual = JSON.parse(l.result) || {}; guardar(); pintarTodo(); avisar("Avance importado"); }
+      catch (e) { avisar("Ese archivo no es un respaldo de avance."); }
+      ev.target.value = "";
+    };
+    l.readAsText(f);
+  });
+
+  /* ---------- eventos ---------- */
+  document.getElementById("rejillas").addEventListener("click", function (ev) {
+    var b = ev.target.closest(".celda");
+    if (!b) return;
+    seleccion = b.getAttribute("data-cp");
+    pintarCasillero(); pintarFicha();
+    if (window.innerWidth <= 940) document.getElementById("ficha").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  document.getElementById("f-estado").addEventListener("change", function (e) { filtros.estado = e.target.value; pintarCasillero(); });
+  document.getElementById("f-nota").addEventListener("change", function (e) { filtros.nota = e.target.checked; pintarCasillero(); });
+
+  /* ---------- prompt ---------- */
+  var PROMPT = [
+    "Eres mi asistente técnico para la digitalización de la escritura Madera (šitakü) de Tabure'shi, la lengua construida del proyecto Tabure. Trabajo en FontForge sobre el archivo Shitaku_1.0.sfd (fuente Tabureshi-Shitaku, versión 001.000).",
+    "",
+    "El sistema, según la gramática descriptiva v1.1 (§2.2):",
+    "- Silabario de 34 consonantes repartidas en once grupos de tres o cuatro, ordenados por sonoridad creciente; cada grupo tiene nombre y una vocal asociada tomada de la secuencia maestra u–o–ã–a–è–ø–e–î–ü–i.",
+    "- Las diez vocales no son grafemas autónomos: se realizan como diacríticos anclados sobre el trazo consonántico, arriba o abajo. La posición codifica si la vocal se lee antes o después de la consonante, y la forma girada 180° corresponde a la lectura previa.",
+    "- El portador nulo (Ø, grupo 11) es una base muda que sostiene la vocal cuando no hay consonante donde apoyarla: dos vocales seguidas (vainu) o palabra que arranca por vocal (arlan).",
+    "- Se codifica en el rango de Uso Privado con anclas OpenType, no con precompuestos: ~50 glifos en vez de varios cientos.",
+    "- Tierra (kapoṭa) y Agua (woʦaši) compartirán los mismos puntos de código; cambiar de escritura será cambiar de fuente.",
+    "",
+    "Estado real del archivo a día de hoy (auditado):",
+    "- 45 glifos: portador U+E000, diez vocales U+E001–U+E00A, 34 consonantes U+E00B–U+E02C. Faltan los cinco signos ( ' “ , . y el diferenciador gráfico ).",
+    "- Todos los glifos tienen contornos dibujados y cerrados, en curvas cúbicas.",
+    "- Anclas: solo el portador lleva las dos anclas base (arriba y abajo) y solo una vocal (U+E002) lleva ancla de marca. Faltan las de las 34 consonantes y las de nueve vocales.",
+    "- No hay ninguna lookup GPOS en el archivo: las clases de anclaje existen sin subtabla, así que ninguna vocal se colocaría en la fuente generada.",
+    "- Las diez vocales tienen avance de 1000 unidades en vez de 0.",
+    "- Una decena de consonantes se sale de su ancho declarado; el espaciado está sin trabajar.",
+    "- Em de 1200 unidades (Ascent 800 / Descent 400).",
+    "",
+    "Herramienta de control que uso: una app de una sola página (HTML autocontenido, sin dependencias externas, localStorage con la clave \"tabure.shitaku.v2\") que lee el .sfd en el navegador, audita anclas, anchos y lookups, lleva una lista de verificación por glifo en seis etapas (trazo, contornos, anclas, espaciado, prueba, cierre) y convierte romanización a texto en šitakü aplicando la regla del portador nulo.",
+    "",
+    "Cómo quiero que trabajes:",
+    "- Responde en español, con pasos concretos de FontForge nombrando el menú exacto (por ejemplo Element ▸ Font Info ▸ Lookups) y el atajo cuando exista.",
+    "- Cuando propongas automatizar algo, dame el script de Python de FontForge listo para ejecutar, no pseudocódigo.",
+    "- Cuando propongas cambios a la app, entrégame el HTML completo listo para reemplazar el archivo y mantén compatible lo ya guardado.",
+    "- Distingue siempre lo que es decisión de diseño de la escritura (mía) de lo que es requisito técnico del formato.",
+    "- Si te falta un dato, pregúntamelo en vez de suponerlo.",
+    "",
+    "Primera tarea: [por ejemplo — plan para colocar las 68 anclas base con un script; decidir si la vocal girada es glifo aparte o sustitución contextual; montar la lookup mark-to-base y probarla; o resolver el espaciado de las consonantes que desbordan]."
+  ].join("\n");
   document.getElementById("texto-prompt").textContent = PROMPT;
   document.getElementById("btn-prompt").addEventListener("click", function () { copiar(PROMPT, "Texto copiado"); });
 
+  function pintarTodo() {
+    pintarArchivo(); pintarKpis(); pintarHallazgos(); pintarCasillero(); pintarFicha();
+  }
   pintarTodo();
+  pintarConversor();
 })();
 </script>
