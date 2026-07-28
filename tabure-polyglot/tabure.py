@@ -918,9 +918,27 @@ def cmd_extraer(args):
         print(gris("Corre `inspeccionar` sobre el mismo archivo y comparte la salida."))
         return 1
 
+    # Aceptar tanto una carpeta como un archivo: si apuntas a una carpeta, se
+    # le pone el nombre por defecto en vez de fallar.
+    destino = os.path.expanduser(args.salida)
+    if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
+        destino = os.path.join(destino, "paquete.json")
+
+    carpeta = os.path.dirname(os.path.abspath(destino))
+    if not os.path.isdir(carpeta):
+        print(rojo("No existe la carpeta %s" % carpeta))
+        print(gris("Créala primero, o arrastra la carpeta desde el Finder a la Terminal "
+                   "para ver su ruta exacta."))
+        return 1
+
     texto = json.dumps(paquete, ensure_ascii=False, indent=2)
-    with io.open(args.salida, "w", encoding="utf-8") as fh:
-        fh.write(texto)
+    try:
+        with io.open(destino, "w", encoding="utf-8") as fh:
+            fh.write(texto)
+    except (IOError, OSError) as exc:
+        print(rojo("No se pudo escribir en %s: %s" % (destino, exc)))
+        return 1
+    args.salida = destino
 
     print(negrita("\nExtraído de %s" % os.path.basename(args.pgd)))
     for clave in ("phonology", "lexicon", "pos", "rules", "grammar"):
