@@ -433,6 +433,27 @@ def tokenizar(palabra, grafemas, ignorar=" -"):
     return tokens, desconocidos
 
 
+def _a_retro_python(reemplazo):
+    """PolyGlot es Java y usa $1 para las retro-referencias; Python usa \\1.
+
+    Se traduce aquí para que una regla escrita como la espera PolyGlot dé el
+    mismo resultado en esta herramienta que en la aplicación.
+    """
+    salida, i = "", 0
+    while i < len(reemplazo):
+        c = reemplazo[i]
+        if c == "$" and i + 1 < len(reemplazo) and reemplazo[i + 1].isdigit():
+            salida += "\\" + reemplazo[i + 1]
+            i += 2
+        elif c == "\\" and i + 1 < len(reemplazo):
+            salida += reemplazo[i:i + 2]      # ya escapado: se deja intacto
+            i += 2
+        else:
+            salida += c
+            i += 1
+    return salida
+
+
 def aplicar_regla(regla, entrada):
     """Aplica la regla regex. Devuelve (ok, resultado_o_mensaje_de_error)."""
     banderas = 0
@@ -447,7 +468,7 @@ def aplicar_regla(regla, entrada):
         return False, "regex inválida: %s" % exc
     cuenta = 0 if "g" in texto_flags else 1
     try:
-        return True, patron.sub(regla.get("reemplazar", ""), entrada, count=cuenta)
+        return True, patron.sub(_a_retro_python(regla.get("reemplazar", "")), entrada, count=cuenta)
     except re.error as exc:
         return False, "reemplazo inválido: %s" % exc
 
