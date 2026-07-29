@@ -1,0 +1,26 @@
+languagesystem DFLT dflt;
+languagesystem latn dflt;
+
+@enlazables      = [uniE00B uniE00C uniE00D];
+@formas_enlazada = [uniE00B.conn uniE00C.conn uniE00D.conn];
+@cualquiera      = [uniE00B uniE00C uniE00D uniE00B.conn uniE00C.conn uniE00D.conn];
+
+# La letra que viene detras de otra toma su forma con trazo de enlace.
+# IgnoreMarks: la vocal intermedia no rompe la cadena.
+# El contexto mira @cualquiera para que la cadena siga tras la primera sustitucion.
+feature calt {
+    lookupflag IgnoreMarks;
+    sub @cualquiera @enlazables' by @formas_enlazada;
+} calt;
+
+# Union cursiva: la salida de una letra encuentra la entrada de la siguiente,
+# con alturas distintas para que se vea el ajuste vertical.
+feature curs {
+    lookupflag IgnoreMarks;
+    pos cursive uniE00B      <anchor 7 -180>   <anchor 564 -40>;
+    pos cursive uniE00C      <anchor 144 -40>  <anchor 701 -300>;
+    pos cursive uniE00D      <anchor -119 -300><anchor 624 -180>;
+    pos cursive uniE00B.conn <anchor 7 -180>   <anchor 564 -40>;
+    pos cursive uniE00C.conn <anchor 144 -40>  <anchor 701 -300>;
+    pos cursive uniE00D.conn <anchor -119 -300><anchor 624 -180>;
+} curs;
