@@ -907,6 +907,148 @@ def extraer_pgd(ruta_pgd):
     return paquete, avisos
 
 
+# --------------------------------------------------------------------------
+# Escritura del capítulo de gramática dentro del .pgd
+# --------------------------------------------------------------------------
+#
+# Es la única escritura que hace esta herramienta, y nunca sobre tu archivo:
+# siempre produce uno nuevo. La gramática es la parte más segura del formato
+# porque sus nodos no llevan identificadores que puedan chocar con nada.
+
+def _xml_escape(texto):
+    return (texto.replace("&", "&amp;").replace("<", "&lt;")
+                 .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def _a_html_polyglot(texto, fuente="Charis SIL", tam="12"):
+    """PolyGlot guarda el texto de cada sección como HTML con fuente explícita."""
+    cuerpo = _xml_escape(texto).replace("\n", "<br>")
+    return '<font face="%s"size="%s"color="black">%s</font>' % (fuente, tam, cuerpo)
+
+
+def inyectar_gramatica(ruta_pgd, secciones, destino, fuente="Charis SIL"):
+    """Escribe las secciones como capítulos de gramática en una copia del .pgd."""
+    import xml.etree.ElementTree as ET
+
+    if not zipfile.is_zipfile(ruta_pgd):
+        raise ValueError("El .pgd no es un contenedor ZIP; esta versión no está contemplada")
+
+    with zipfile.ZipFile(ruta_pgd) as z:
+        entradas = [(n, z.read(n)) for n in z.namelist()]
+    principales = [n for n, _ in entradas
+                   if n.lower().endswith(".xml") and not n.startswith("reversion/")]
+    if not principales:
+        raise ValueError("No se encontró el XML principal dentro del .pgd")
+    nombre_xml = principales[0]
+
+    crudo = dict(entradas)[nombre_xml]
+    raiz = ET.fromstring(crudo)
+
+    coleccion = raiz.find("./grammarCollection")
+    if coleccion is None:
+        coleccion = ET.SubElement(raiz, "grammarCollection")
+
+    # Agrupar por capítulo a partir del número del título: "3.2 Algo" -> "3".
+    capitulos, orden_cap = {}, []
+    for s in secciones:
+        titulo = (s.get("title") or "").strip()
+        m = re.match(r"^(\d+)", titulo)
+        clave = m.group(1) if m else "Sin capítulo"
+        if clave not in capitulos:
+            capitulos[clave] = []
+            orden_cap.append(clave)
+        capitulos[clave].append(s)
+
+    # El título del capítulo sale de su propia entrada ("3 Sustantivos"), si viene.
+    nombres = {}
+    for clave in orden_cap:
+        for s in capitulos[clave]:
+            t = (s.get("title") or "").strip()
+            if re.match(r"^" + re.escape(clave) + r"\s+\S", t):
+                nombres[clave] = t
+                break
+        nombres.setdefault(clave, clave)
+
+    existentes = set()
+    for cap in coleccion.findall("./grammarChapterNode"):
+        nodo = cap.find("grammarChapterName")
+        if nodo is not None and nodo.text:
+            existentes.add(nodo.text.strip())
+
+    añadidos_cap, añadidas_sec, omitidos = 0, 0, []
+    for clave in orden_cap:
+        nombre_cap = nombres[clave]
+        if nombre_cap in existentes:
+            omitidos.append(nombre_cap)
+            continue
+        cap = ET.SubElement(coleccion, "grammarChapterNode")
+        ET.SubElement(cap, "grammarChapterName").text = nombre_cap
+        lista = ET.SubElement(cap, "grammarSectionsList")
+        for s in capitulos[clave]:
+            titulo = (s.get("title") or "").strip()
+            if titulo == nombre_cap and not (s.get("content") or "").strip():
+                continue          # cabecera de capítulo sin texto propio
+            nodo = ET.SubElement(lista, "grammarSectionNode")
+            ET.SubElement(nodo, "gptSelected").text = "F"
+            ET.SubElement(nodo, "grammarSectionName").text = titulo
+            ET.SubElement(nodo, "grammarSectionRecordingXID").text = "-1"
+            ET.SubElement(nodo, "grammarSectionText").text = _a_html_polyglot(
+                s.get("content") or "", fuente)
+            añadidas_sec += 1
+        añadidos_cap += 1
+
+    nuevo_xml = ET.tostring(raiz, encoding="UTF-8", xml_declaration=True)
+
+    with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
+        for nombre, datos in entradas:
+            z.writestr(nombre, nuevo_xml if nombre == nombre_xml else datos)
+
+    return {"capitulos": añadidos_cap, "secciones": añadidas_sec, "omitidos": omitidos}
+
+
+def cmd_inyectar(args):
+    try:
+        with io.open(args.paquete, "r", encoding="utf-8") as fh:
+            datos = json.load(fh)
+    except (IOError, OSError, ValueError) as exc:
+        print(rojo("No se pudo leer el paquete: %s" % exc))
+        return 1
+
+    secciones = datos.get("grammar") or []
+    if not secciones:
+        print(ambar("El paquete no trae ninguna sección de gramática."))
+        return 1
+
+    destino = args.salida
+    if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
+        base = os.path.basename(args.pgd)
+        raiz_nombre, ext = os.path.splitext(base)
+        destino = os.path.join(destino, raiz_nombre + " (con gramática)" + ext)
+    if os.path.exists(destino) and not args.sobrescribir:
+        print(rojo("Ya existe %s" % destino))
+        print(gris("Usa --sobrescribir o elige otro nombre."))
+        return 1
+    if os.path.abspath(destino) == os.path.abspath(args.pgd):
+        print(rojo("La salida no puede ser el mismo archivo de entrada."))
+        return 1
+
+    try:
+        r = inyectar_gramatica(args.pgd, secciones, destino, args.fuente)
+    except Exception as exc:
+        print(rojo("No se pudo escribir: %s" % exc))
+        return 1
+
+    print(negrita("\nEscrito %s" % destino))
+    print("  capítulos nuevos   %d" % r["capitulos"])
+    print("  secciones escritas %d" % r["secciones"])
+    if r["omitidos"]:
+        print(ambar("  capítulos omitidos por existir ya: ") + ", ".join(r["omitidos"]))
+    print("")
+    print(gris("Tu archivo original no se ha tocado. Abre el nuevo en PolyGlot y compruébalo"))
+    print(gris("antes de darlo por bueno."))
+    return 0
+
+
 def cmd_extraer(args):
     try:
         paquete, avisos = extraer_pgd(args.pgd)
@@ -1371,6 +1513,15 @@ def main(argv=None):
     sp.add_argument("--pgd", required=True, help="Ruta al archivo .pgd de PolyGlot")
     sp.add_argument("--salida", default="paquete.json", help="Archivo JSON a escribir")
     sp.set_defaults(func=cmd_extraer)
+
+    sp = sub.add_parser("inyectar-gramatica",
+                        help="Escribe las secciones de gramática de un paquete en una COPIA del .pgd")
+    sp.add_argument("--pgd", required=True, help="Tu archivo .pgd (no se modifica)")
+    sp.add_argument("--paquete", required=True, help="JSON con la clave \"grammar\"")
+    sp.add_argument("--salida", required=True, help="Archivo o carpeta donde escribir el .pgd nuevo")
+    sp.add_argument("--fuente", default="Charis SIL", help="Fuente del texto en PolyGlot")
+    sp.add_argument("--sobrescribir", action="store_true", help="Permitir pisar la salida si ya existe")
+    sp.set_defaults(func=cmd_inyectar)
 
     sp = sub.add_parser("inspeccionar", help="Describe la estructura real de un archivo .pgd")
     sp.add_argument("--pgd", required=True, help="Ruta al archivo .pgd de PolyGlot")

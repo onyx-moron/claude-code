@@ -39,6 +39,7 @@ lector de frontmatter y funciona igual.
 | `probar` | Aplica cada regla de conjugación al léxico real y muestra qué produce. |
 | `exportar` | Valida y genera los archivos para PolyGlot. |
 | `vigilar` | Repite `exportar` automáticamente cada vez que guardas una nota. |
+| `inyectar-gramatica` | Escribe secciones de gramática dentro de una **copia** del `.pgd`. |
 | `inspeccionar` | Describe la estructura interna de tu archivo `.pgd`. Solo lectura. |
 | `importar-cuaderno` | Convierte el respaldo JSON del cuaderno web en notas del vault. |
 
@@ -252,6 +253,29 @@ en un script.
 | `informe.md` | El resultado de la revisión, para guardarlo en el vault. |
 
 ---
+
+## Llevar la gramática a PolyGlot
+
+La gramática es la única parte que esta herramienta escribe dentro del `.pgd`, y
+**nunca sobre tu archivo**: siempre produce uno nuevo.
+
+```bash
+python3 tabure.py inyectar-gramatica \
+    --pgd "~/Tabure/Tabure.pgd" \
+    --paquete ~/Tabure/paquete-gramatica.json \
+    --salida ~/Tabure/
+```
+
+Agrupa las secciones en capítulos por el número de su título (`3.2 Flexión de caso`
+va al capítulo `3`), y escribe cada una con el formato HTML que PolyGlot usa para su
+libro de Grammar. Un capítulo cuyo nombre ya exista se omite entero, para no
+duplicar lo que ya tenías.
+
+Se eligió la gramática porque es la zona más segura del formato: sus nodos no llevan
+identificadores que puedan chocar con los del léxico o las declinaciones. El resto
+del archivo se copia sin tocar, incluida la carpeta `reversion/` con el historial.
+
+Abre el archivo nuevo en PolyGlot y compruébalo antes de darlo por bueno.
 
 ## Sobre escribir directamente en el `.pgd`
 
