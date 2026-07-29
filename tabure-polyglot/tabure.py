@@ -871,23 +871,33 @@ def extraer_pgd(ruta_pgd):
 
     # ---- Reglas de conjugación --------------------------------------------
     reglas = []
-    for nodo in raiz.findall("./declensionCollection/decGenRule"):
+    for n_regla, nodo in enumerate(raiz.findall("./declensionCollection/decGenRule")):
         etiqueta = _hijo(nodo, "decGenRuleName")
         pos = nombre_pos.get(_hijo(nodo, "decGenRuleTypeId"), "")
+        # Estos campos enlazan la regla con la casilla de declinación concreta
+        # a la que se aplica. Se conservan para que reinyectar no los pierda.
+        meta = {
+            "pgComb": _hijo(nodo, "decGenRuleComb"),
+            "pgIndex": _hijo(nodo, "decGenRuleIndex"),
+            "pgRegex": _hijo(nodo, "decGenRuleRegex"),
+            "pgGrupo": "r%03d" % n_regla,
+        }
         transformaciones = nodo.findall("./decGenTrans")
         for i, trans in enumerate(transformaciones, start=1):
             buscar = _hijo(trans, "decGenTransRegex")
             if not buscar:
                 continue
             sufijo = "" if len(transformaciones) == 1 else " (%d)" % i
-            reglas.append({
+            fila = {
                 "label": (etiqueta or "Regla sin nombre") + sufijo,
                 "pos": pos,
                 "find": buscar,
                 "replace": _hijo(trans, "decGenTransReplace"),
                 "flags": "",
                 "tests": []
-            })
+            }
+            fila.update(meta)
+            reglas.append(fila)
     if reglas:
         paquete["rules"] = reglas
 
@@ -924,6 +934,167 @@ def _a_html_polyglot(texto, fuente="Charis SIL", tam="12"):
     """PolyGlot guarda el texto de cada sección como HTML con fuente explícita."""
     cuerpo = _xml_escape(texto).replace("\n", "<br>")
     return '<font face="%s"size="%s"color="black">%s</font>' % (fuente, tam, cuerpo)
+
+
+def _reemplazar_hijos(padre, etiqueta):
+    """Vacía todos los nodos <etiqueta> hijos de padre y devuelve el padre."""
+    for viejo in padre.findall(etiqueta):
+        padre.remove(viejo)
+    return padre
+
+
+def _sub(padre, etiqueta, texto=""):
+    import xml.etree.ElementTree as ET
+    nodo = ET.SubElement(padre, etiqueta)
+    nodo.text = texto if texto is not None else ""
+    return nodo
+
+
+def _asegurar(raiz, etiqueta):
+    import xml.etree.ElementTree as ET
+    nodo = raiz.find("./" + etiqueta)
+    if nodo is None:
+        nodo = ET.SubElement(raiz, etiqueta)
+    return nodo
+
+
+def _escribir_pos(raiz, lista, informe):
+    """Reescribe partsOfSpeech y devuelve el mapa nombre -> id."""
+    coleccion = _asegurar(raiz, "partsOfSpeech")
+    _reemplazar_hijos(coleccion, "partOfSpeechNode")
+    mapa = {}
+    for i, p in enumerate(lista, start=1):
+        nombre = (p.get("name") or "").strip()
+        if not nombre:
+            continue
+        pid = str(i)
+        mapa[nombre] = pid
+        nodo = _sub(coleccion, "partOfSpeechNode")
+        _sub(nodo, "partOfSpeechId", pid)
+        _sub(nodo, "partOfSpeechName", nombre)
+        _sub(nodo, "partOfSpeechNotes", _a_html_polyglot(p.get("notes") or ""))
+        _sub(nodo, "partOfSpeechGloss", "")
+        _sub(nodo, "partOfSpeechPattern", "")
+        _sub(nodo, "definitionMandatoryPartOfSpeech", "F")
+        _sub(nodo, "pronunciationMandatoryPartOfSpeech", "F")
+        informe["pos"] += 1
+    return mapa
+
+
+def _mapa_pos_existente(raiz):
+    mapa = {}
+    for nodo in raiz.findall("./partsOfSpeech/partOfSpeechNode"):
+        nombre = _hijo(nodo, "partOfSpeechName").strip()
+        if nombre:
+            mapa[nombre] = _hijo(nodo, "partOfSpeechId")
+    return mapa
+
+
+def _escribir_lexicon(raiz, lista, mapa_pos, informe, avisos):
+    coleccion = _asegurar(raiz, "lexicon")
+    _reemplazar_hijos(coleccion, "word")
+    sin_pos = set()
+    for i, w in enumerate(lista, start=1):
+        palabra = (w.get("headword") or "").strip()
+        if not palabra:
+            continue
+        nombre_pos = (w.get("pos") or "").strip()
+        pid = mapa_pos.get(nombre_pos, "")
+        if nombre_pos and not pid:
+            sin_pos.add(nombre_pos)
+        nodo = _sub(coleccion, "word")
+        _sub(nodo, "wordId", str(i))
+        _sub(nodo, "conWord", palabra)
+        _sub(nodo, "localWord", w.get("gloss") or "")
+        _sub(nodo, "wordPosId", pid)
+        _sub(nodo, "pronunciation", w.get("ipa") or "")
+        _sub(nodo, "definition", _a_html_polyglot(w.get("gloss") or ""))
+        _sub(nodo, "wordEtymologyNotes", _a_html_polyglot(w.get("etymology") or ""))
+        _sub(nodo, "autoDeclOverride", "F")
+        _sub(nodo, "wordProcOverride", "F")
+        _sub(nodo, "wordRuleOverride", "F")
+        _sub(nodo, "wordClassCollection")
+        _sub(nodo, "wordClassTextValueCollection")
+        informe["lexicon"] += 1
+    if sin_pos:
+        avisos.append("Palabras con categoría no declarada, quedan sin Part of Speech: "
+                      + ", ".join(sorted(sin_pos)))
+
+
+def _escribir_fonologia(raiz, lista, informe):
+    pro = _asegurar(raiz, "pronunciationCollection")
+    _reemplazar_hijos(pro, "proGuide")
+    rom = _asegurar(raiz, "romGuide")
+    _reemplazar_hijos(rom, "romGuideNode")
+    props = _asegurar(raiz, "languageProperties")
+    charrep = props.find("./langPropCharRep")
+    if charrep is None:
+        charrep = _sub(props, "langPropCharRep")
+    _reemplazar_hijos(charrep, "langPropCharRepNode")
+
+    for f in lista:
+        grafema = (f.get("char") or "").strip()
+        if not grafema:
+            continue
+        nodo = _sub(pro, "proGuide")
+        _sub(nodo, "proGuideBase", grafema)
+        # PolyGlot guarda el fonema entre barras; se restituyen al escribir.
+        ipa = (f.get("ipa") or "").strip()
+        _sub(nodo, "proGuidePhon", ("/%s/" % ipa) if ipa else "")
+        informe["phonology"] += 1
+
+        roman = (f.get("roman") or "").strip()
+        if roman:
+            rnodo = _sub(rom, "romGuideNode")
+            _sub(rnodo, "romGuideBase", grafema)
+            _sub(rnodo, "romGuidePhon", roman)
+
+        tecla = (f.get("replacement") or "").strip()
+        if tecla:
+            cnodo = _sub(charrep, "langPropCharRepNode")
+            _sub(cnodo, "langPropCharRepCharacter", tecla)
+            _sub(cnodo, "langPropCharRepValue", grafema)
+
+
+def _escribir_reglas(raiz, lista, mapa_pos, informe, avisos):
+    coleccion = _asegurar(raiz, "declensionCollection")
+    _reemplazar_hijos(coleccion, "decGenRule")
+
+    # Reagrupar las transformaciones que salieron de una misma regla original.
+    grupos, orden = {}, []
+    for r in lista:
+        clave = r.get("pgGrupo") or ("%s|%s|%s" % (r.get("label",""), r.get("pos",""),
+                                                   r.get("pgComb","")))
+        if clave not in grupos:
+            grupos[clave] = []
+            orden.append(clave)
+        grupos[clave].append(r)
+
+    sin_comb = 0
+    for clave in orden:
+        filas = grupos[clave]
+        cabeza = filas[0]
+        # El nombre pierde el sufijo "(n)" que añadió `extraer` al desdoblar.
+        etiqueta = re.sub(r"\s*\(\d+\)$", "", cabeza.get("label") or "")
+        comb = cabeza.get("pgComb")
+        if not comb:
+            sin_comb += 1
+        nodo = _sub(coleccion, "decGenRule")
+        _sub(nodo, "decGenRuleName", etiqueta)
+        _sub(nodo, "decGenRuleTypeId", mapa_pos.get((cabeza.get("pos") or "").strip(), ""))
+        _sub(nodo, "decGenRuleComb", comb or "")
+        _sub(nodo, "decGenRuleIndex", cabeza.get("pgIndex") or "1")
+        _sub(nodo, "decGenRuleRegex", cabeza.get("pgRegex") or ".*")
+        _sub(nodo, "decGenRuleApplyToClasses")
+        for r in filas:
+            trans = _sub(nodo, "decGenTrans")
+            _sub(trans, "decGenTransRegex", r.get("find") or "")
+            _sub(trans, "decGenTransReplace", r.get("replace") or "")
+            informe["rules"] += 1
+    if sin_comb:
+        avisos.append("%d regla(s) sin enlace a casilla de declinación (decGenRuleComb): "
+                      "PolyGlot las mostrará sin asignar. Son reglas creadas fuera de "
+                      "PolyGlot o extraídas con una versión anterior." % sin_comb)
 
 
 def inyectar_gramatica(ruta_pgd, secciones, destino, fuente="Charis SIL"):
@@ -1004,6 +1175,139 @@ def inyectar_gramatica(ruta_pgd, secciones, destino, fuente="Charis SIL"):
             z.writestr(nombre, nuevo_xml if nombre == nombre_xml else datos)
 
     return {"capitulos": añadidos_cap, "secciones": añadidas_sec, "omitidos": omitidos}
+
+
+SECCIONES_INYECTABLES = ["grammar", "pos", "lexicon", "phonology", "rules"]
+
+
+def inyectar(ruta_pgd, paquete, destino, secciones, fuente="Charis SIL"):
+    """Escribe las secciones pedidas en una copia del .pgd. Reemplaza, no suma."""
+    import xml.etree.ElementTree as ET
+
+    if not zipfile.is_zipfile(ruta_pgd):
+        raise ValueError("El .pgd no es un contenedor ZIP; esta versión no está contemplada")
+
+    with zipfile.ZipFile(ruta_pgd) as z:
+        entradas = [(n, z.read(n)) for n in z.namelist()]
+    principales = [n for n, _ in entradas
+                   if n.lower().endswith(".xml") and not n.startswith("reversion/")]
+    if not principales:
+        raise ValueError("No se encontró el XML principal dentro del .pgd")
+    nombre_xml = principales[0]
+    raiz = ET.fromstring(dict(entradas)[nombre_xml])
+
+    informe = dict((k, 0) for k in SECCIONES_INYECTABLES)
+    avisos = []
+
+    # Las categorías van primero: el léxico y las reglas necesitan sus ids.
+    if "pos" in secciones and paquete.get("pos"):
+        mapa_pos = _escribir_pos(raiz, paquete["pos"], informe)
+    else:
+        mapa_pos = _mapa_pos_existente(raiz)
+
+    if "phonology" in secciones and paquete.get("phonology"):
+        _escribir_fonologia(raiz, paquete["phonology"], informe)
+
+    if "lexicon" in secciones and paquete.get("lexicon"):
+        _escribir_lexicon(raiz, paquete["lexicon"], mapa_pos, informe, avisos)
+
+    if "rules" in secciones and paquete.get("rules"):
+        _escribir_reglas(raiz, paquete["rules"], mapa_pos, informe, avisos)
+
+    if "grammar" in secciones and paquete.get("grammar"):
+        coleccion = _asegurar(raiz, "grammarCollection")
+        _reemplazar_hijos(coleccion, "grammarChapterNode")
+        capitulos, orden_cap = {}, []
+        for s in paquete["grammar"]:
+            titulo = (s.get("title") or "").strip()
+            m = re.match(r"^(\d+)", titulo)
+            clave = m.group(1) if m else "Sin capítulo"
+            if clave not in capitulos:
+                capitulos[clave] = []
+                orden_cap.append(clave)
+            capitulos[clave].append(s)
+        nombres = {}
+        for clave in orden_cap:
+            for s in capitulos[clave]:
+                t = (s.get("title") or "").strip()
+                if re.match(r"^" + re.escape(clave) + r"\s+\S", t):
+                    nombres[clave] = t
+                    break
+            nombres.setdefault(clave, clave)
+        for clave in orden_cap:
+            cap = _sub(coleccion, "grammarChapterNode")
+            _sub(cap, "grammarChapterName", nombres[clave])
+            lista = _sub(cap, "grammarSectionsList")
+            for s in capitulos[clave]:
+                titulo = (s.get("title") or "").strip()
+                if titulo == nombres[clave] and not (s.get("content") or "").strip():
+                    continue
+                nodo = _sub(lista, "grammarSectionNode")
+                _sub(nodo, "gptSelected", "F")
+                _sub(nodo, "grammarSectionName", titulo)
+                _sub(nodo, "grammarSectionRecordingXID", "-1")
+                _sub(nodo, "grammarSectionText", _a_html_polyglot(s.get("content") or "", fuente))
+                informe["grammar"] += 1
+
+    if paquete.get("classes") and "classes" in secciones:
+        avisos.append("Las clases léxicas no se escriben: el contenedor está vacío en el "
+                      "archivo de origen y su estructura interna no es conocida. "
+                      "Créalas a mano en PolyGlot.")
+
+    nuevo_xml = ET.tostring(raiz, encoding="UTF-8", xml_declaration=True)
+    with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
+        for nombre, datos in entradas:
+            z.writestr(nombre, nuevo_xml if nombre == nombre_xml else datos)
+
+    return informe, avisos
+
+
+def cmd_inyectar_todo(args):
+    try:
+        with io.open(args.paquete, "r", encoding="utf-8") as fh:
+            paquete = json.load(fh)
+    except (IOError, OSError, ValueError) as exc:
+        print(rojo("No se pudo leer el paquete: %s" % exc))
+        return 1
+
+    pedidas = [s.strip() for s in args.secciones.split(",") if s.strip()]
+    if "todo" in pedidas:
+        pedidas = list(SECCIONES_INYECTABLES)
+    desconocidas = [s for s in pedidas if s not in SECCIONES_INYECTABLES + ["classes"]]
+    if desconocidas:
+        print(rojo("Sección desconocida: %s" % ", ".join(desconocidas)))
+        print(gris("Válidas: %s, todo" % ", ".join(SECCIONES_INYECTABLES)))
+        return 1
+
+    destino = args.salida
+    if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
+        raiz_nombre, ext = os.path.splitext(os.path.basename(args.pgd))
+        destino = os.path.join(destino, raiz_nombre + " (inyectado)" + ext)
+    if os.path.abspath(destino) == os.path.abspath(args.pgd):
+        print(rojo("La salida no puede ser el mismo archivo de entrada."))
+        return 1
+    if os.path.exists(destino) and not args.sobrescribir:
+        print(rojo("Ya existe %s" % destino))
+        print(gris("Usa --sobrescribir para reemplazarlo."))
+        return 1
+
+    try:
+        informe, avisos = inyectar(args.pgd, paquete, destino, pedidas, args.fuente)
+    except Exception as exc:
+        print(rojo("No se pudo escribir: %s" % exc))
+        return 1
+
+    print(negrita("\nEscrito %s" % destino))
+    for clave in SECCIONES_INYECTABLES:
+        if clave in pedidas:
+            marca = verde("✓") if informe[clave] else gris("·")
+            print("  %s %-11s %d" % (marca, clave, informe[clave]))
+    for a in avisos:
+        print(ambar("  AVISO  ") + a)
+    print("")
+    print(gris("Cada sección escrita REEMPLAZA la que hubiera en el archivo."))
+    print(gris("Tu .pgd de origen no se ha modificado. Abre el nuevo y compruébalo."))
+    return 0
 
 
 def cmd_inyectar(args):
@@ -1514,14 +1818,25 @@ def main(argv=None):
     sp.add_argument("--salida", default="paquete.json", help="Archivo JSON a escribir")
     sp.set_defaults(func=cmd_extraer)
 
+    sp = sub.add_parser("inyectar",
+                        help="Escribe las secciones elegidas de un paquete en una COPIA del .pgd")
+    sp.add_argument("--pgd", required=True, help="Tu archivo .pgd (no se modifica)")
+    sp.add_argument("--paquete", required=True, help="JSON del cuaderno o de `extraer`")
+    sp.add_argument("--salida", required=True, help="Archivo o carpeta donde escribir el .pgd nuevo")
+    sp.add_argument("--secciones", default="todo",
+                    help="Coma-separadas: %s, o «todo»" % ", ".join(SECCIONES_INYECTABLES))
+    sp.add_argument("--fuente", default="Charis SIL", help="Fuente del texto en PolyGlot")
+    sp.add_argument("--sobrescribir", action="store_true", help="Permitir pisar la salida si ya existe")
+    sp.set_defaults(func=cmd_inyectar_todo)
+
     sp = sub.add_parser("inyectar-gramatica",
-                        help="Escribe las secciones de gramática de un paquete en una COPIA del .pgd")
+                        help="Alias de `inyectar --secciones grammar`")
     sp.add_argument("--pgd", required=True, help="Tu archivo .pgd (no se modifica)")
     sp.add_argument("--paquete", required=True, help="JSON con la clave \"grammar\"")
     sp.add_argument("--salida", required=True, help="Archivo o carpeta donde escribir el .pgd nuevo")
     sp.add_argument("--fuente", default="Charis SIL", help="Fuente del texto en PolyGlot")
     sp.add_argument("--sobrescribir", action="store_true", help="Permitir pisar la salida si ya existe")
-    sp.set_defaults(func=cmd_inyectar)
+    sp.set_defaults(func=cmd_inyectar, secciones="grammar")
 
     sp = sub.add_parser("inspeccionar", help="Describe la estructura real de un archivo .pgd")
     sp.add_argument("--pgd", required=True, help="Ruta al archivo .pgd de PolyGlot")

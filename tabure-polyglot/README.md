@@ -39,7 +39,7 @@ lector de frontmatter y funciona igual.
 | `probar` | Aplica cada regla de conjugación al léxico real y muestra qué produce. |
 | `exportar` | Valida y genera los archivos para PolyGlot. |
 | `vigilar` | Repite `exportar` automáticamente cada vez que guardas una nota. |
-| `inyectar-gramatica` | Escribe secciones de gramática dentro de una **copia** del `.pgd`. |
+| `inyectar` | Escribe las secciones elegidas dentro de una **copia** del `.pgd`. |
 | `inspeccionar` | Describe la estructura interna de tu archivo `.pgd`. Solo lectura. |
 | `importar-cuaderno` | Convierte el respaldo JSON del cuaderno web en notas del vault. |
 
@@ -254,26 +254,38 @@ en un script.
 
 ---
 
-## Llevar la gramática a PolyGlot
+## Escribir de vuelta en PolyGlot
 
-La gramática es la única parte que esta herramienta escribe dentro del `.pgd`, y
-**nunca sobre tu archivo**: siempre produce uno nuevo.
+`inyectar` escribe dentro del `.pgd`, **nunca sobre tu archivo**: siempre produce uno
+nuevo.
 
 ```bash
-python3 tabure.py inyectar-gramatica \
-    --pgd "~/Tabure/Tabure.pgd" \
-    --paquete ~/Tabure/paquete-gramatica.json \
-    --salida ~/Tabure/
+# todo de una vez
+python3 tabure.py inyectar --pgd "~/Tabure/Tabure.pgd" \
+    --paquete ~/Tabure/paquete.json --salida ~/Tabure/ --secciones todo
+
+# o una sección concreta
+python3 tabure.py inyectar --pgd "~/Tabure/Tabure.pgd" \
+    --paquete ~/Tabure/paquete.json --salida ~/Tabure/ --secciones phonology
 ```
 
-Agrupa las secciones en capítulos por el número de su título (`3.2 Flexión de caso`
-va al capítulo `3`), y escribe cada una con el formato HTML que PolyGlot usa para su
-libro de Grammar. Un capítulo cuyo nombre ya exista se omite entero, para no
-duplicar lo que ya tenías.
+Secciones válidas: `grammar`, `pos`, `lexicon`, `phonology`, `rules`, o `todo`.
+Añade `--sobrescribir` para pisar una salida que ya exista.
 
-Se eligió la gramática porque es la zona más segura del formato: sus nodos no llevan
-identificadores que puedan chocar con los del léxico o las declinaciones. El resto
-del archivo se copia sin tocar, incluida la carpeta `reversion/` con el historial.
+**Cada sección escrita reemplaza por completo la que hubiera en el archivo.** No suma:
+lo que no esté en el paquete desaparece de esa sección. El resto del contenedor se
+copia intacto, incluida la carpeta `reversion/` con el historial.
+
+Detalles que la escritura respeta:
+
+- Las **categorías** se numeran de nuevo, y el léxico y las reglas se reenlazan a los
+  ids nuevos. Por eso conviene escribir `pos` junto con `lexicon` o `rules`.
+- Los **fonemas** recuperan sus barras (`tʃ` → `/tʃ/`), que es como PolyGlot los guarda.
+- Las **reglas** conservan su enlace a la casilla de declinación (`decGenRuleComb`), y
+  las transformaciones que salieron de una misma regla vuelven a agruparse en ella.
+  Una regla creada fuera de PolyGlot carece de ese enlace y se avisa al escribirla.
+- Las **clases léxicas** no se escriben: ese contenedor estaba vacío en el archivo de
+  referencia, así que su estructura no es conocida. Créalas a mano en PolyGlot.
 
 Abre el archivo nuevo en PolyGlot y compruébalo antes de darlo por bueno.
 
