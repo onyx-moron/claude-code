@@ -255,7 +255,7 @@
     <section class="caja" aria-label="Conversor de romanización">
       <header><h2 class="tit">Conversor de prueba</h2><span class="apunte" id="estado-fuente">sin fuente cargada</span></header>
       <div class="cuerpo">
-        <input type="text" id="entrada" value="dana arlan vainu uŋki" aria-label="Texto en romanización">
+        <input type="text" id="entrada" value="aciekouq̂ü" aria-label="Texto en romanización">
         <div class="teclado" id="teclado"></div>
         <label class="marcar"><input type="checkbox" id="preposada"> Vocal antes de consonante: debajo y girada (en vez de portador nulo)</label>
         <div class="salida" id="salida"></div>
@@ -283,7 +283,7 @@
           </article>
           <article class="tarjeta">
             <h4>Palabra que arranca por vocal</h4>
-            <p><b>arlan</b> → portador nulo + marca <i>a</i>, y sigue <i>r</i>, <i>l</i>, <i>a</i>, <i>n</i>.</p>
+            <p><b>arlan</b> → portador nulo + marca <i>a</i>, y sigue <i>r</i>, <i>l</i>, <i>a</i>, <i>n</i>. Con la casilla de vocal preposada marcada, esa <i>a</i> baja bajo la <i>r</i>, girada, y el portador desaparece.</p>
           </article>
         </div>
       </div>
@@ -648,9 +648,35 @@
         via: "Element ▸ Font Info ▸ Mark Classes" });
     }
     if (ausentes.length) {
-      h.push({ s: "nota", t: "Faltan <b>" + ausentes.length + "</b> signos del inventario de §2.2.1: " + ausentes.map(function (g) { return "<b>" + esc(g.titulo) + "</b>"; }).join(", ") + ".",
+      h.push({ s: "nota", t: "Faltan <b>" + ausentes.length + "</b> signos del inventario: " +
+        ausentes.slice(0, 6).map(function (g) { return "<b>" + esc(g.titulo) + "</b>"; }).join(", ") +
+        (ausentes.length > 6 ? " y " + (ausentes.length - 6) + " más" : "") + ".",
         via: "Encoding ▸ ir a U+E02D y siguientes" });
     }
+    // ¿alguna vocal engancha por la clase equivocada?
+    var claseRara = vocales.filter(function (g) {
+      var d = datos(g.cp);
+      return d && d.a.length && d.a.every(function (a) { return a[0] === "abajo"; });
+    });
+    if (claseRara.length) {
+      h.push({ s: "aviso", t: "<b>" + claseRara.length + "</b> vocal con su ancla de marca en la clase <b>abajo</b> en vez de <b>arriba</b>: " + muestra(claseRara) +
+        ". Cuelga por debajo de la consonante cuando debería posarse encima.",
+        via: "Abrir el glifo ▸ doble clic en el ancla ▸ cambiar de clase" });
+    }
+
+    // ¿cabe el conjunto consonante + vocal arriba + vocal abajo?
+    var altoVocal = 0;
+    vocales.forEach(function (g) { var c = caja(g.cp); if (c) altoVocal = Math.max(altoVocal, c.y2 - c.y1); });
+    if (altoVocal) {
+      var arriba = ALTO_ARRIBA + altoVocal, abajo = ALTO_ABAJO - altoVocal;
+      if (arriba > META.ascent || -abajo > META.descent) {
+        h.push({ s: "aviso", t: "Con la vocal más alta (" + altoVocal + " u) puesta en las dos anclas, la mancha va de <b>" + abajo + "</b> a <b>" + arriba +
+          "</b>, y el archivo declara ascendente " + META.ascent + " y descendente " + META.descent +
+          ". La escritura cuelga más de lo que el reparto vertical le concede.",
+          via: "Element ▸ Font Info ▸ General ▸ Ascent / Descent" });
+      }
+    }
+
     var em = META.ascent + META.descent;
     if (em !== 1000 && em !== 2048) {
       h.push({ s: "nota", t: "El em vale <b>" + em + "</b> unidades (800 + 400), fuera de los valores habituales de 1000 y 2048. Es legal, pero si alguna vez conviene cambiarlo, hacerlo ahora cuesta mucho menos que con las tres escrituras dibujadas.",
@@ -1136,7 +1162,7 @@
   }
 
   /* ---------- pauta y unión ---------- */
-  var ASC = 800, DESC = -400, ALTO_ARRIBA = 550, ALTO_ABAJO = -100;
+  var ASC = 800, DESC = -400, ALTO_ARRIBA = 312, ALTO_ABAJO = -413;
   var union = cargarUnion();
   var pauta = { angulo: 44, sep: 300, holgura: 0, ver: true, vocal: false, a: "E00C", b: "E00B" };
 

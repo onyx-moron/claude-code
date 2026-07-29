@@ -11,9 +11,10 @@ Hace cuatro cosas sobre una copia del archivo, sin tocar el original:
      a una altura fija común y centradas sobre la mancha del trazo.
   4. Coloca en cada vocal que no lo tenga el ancla de marca complementaria.
 
-Las anclas que ya existan se respetan. Las alturas son un punto de partida
-uniforme: se ajustan después a ojo, glifo por glifo, en la ventana de
-FontForge (Point ▸ Add Anchor Point para ver y arrastrar las existentes).
+Las anclas que ya existan se respetan. Las alturas por defecto salen de medir
+las consonantes ya terminadas —su mancha va de -353 a 252— y dejar 60 unidades
+de aire por arriba y por abajo: 312 y -413. Son un punto de partida uniforme;
+se ajustan después a ojo, glifo por glifo, en la ventana de FontForge.
 
 Uso:
     python3 anclas_shitaku.py Shitaku_1.0.sfd
@@ -70,8 +71,8 @@ def main():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("sfd", help="archivo .sfd de entrada")
     p.add_argument("-o", "--salida", help="archivo .sfd de salida (por defecto, «-anclas» junto al original)")
-    p.add_argument("--arriba", type=int, default=550, help="altura del ancla superior (por defecto 550)")
-    p.add_argument("--abajo", type=int, default=-100, help="altura del ancla inferior (por defecto -100)")
+    p.add_argument("--arriba", type=int, default=312, help="altura del ancla superior (por defecto 312)")
+    p.add_argument("--abajo", type=int, default=-413, help="altura del ancla inferior (por defecto -413)")
     p.add_argument("--sin-ceros", action="store_true", help="no tocar el avance de las vocales")
     p.add_argument("--otf", metavar="ARCHIVO", help="generar además una fuente de prueba")
     args = p.parse_args()
