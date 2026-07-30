@@ -147,6 +147,8 @@
   .leyenda-union { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--tinta-s); }
   .leyenda-union i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; border: 2px solid; }
 
+  #mandos[data-modo="anclas"] .solo-union, #mandos[data-modo="union"] .solo-anclas { display: none; }
+
   /* casillero */
   .consola { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 22px; align-items: start; }
   @media (max-width: 940px) { .consola { grid-template-columns: minmax(0, 1fr); } }
@@ -257,7 +259,7 @@
       <div class="cuerpo">
         <input type="text" id="entrada" value="aciekouq̂ü" aria-label="Texto en romanización">
         <div class="teclado" id="teclado"></div>
-        <label class="marcar"><input type="checkbox" id="preposada"> Vocal antes de consonante: debajo y girada (en vez de portador nulo)</label>
+        <label class="marcar"><input type="checkbox" id="preposada" checked> Vocal antes de consonante: debajo y girada (en vez de portador nulo)</label>
         <div class="salida" id="salida"></div>
         <div class="salida" id="salida-fuente" style="font-size:44px;min-height:0;display:none"></div>
         <div class="puntos" id="puntos"></div>
@@ -292,30 +294,41 @@
 
   <section class="bloque">
     <h2 class="tit">Pauta y unión</h2>
-    <p class="apunte" style="margin:0;max-width:70ch">Arrastra el punto de <b>salida</b> de la primera letra y el de <b>entrada</b> de la segunda: ahí es donde se toca la grafía. La holgura decide si el enlace se cierra, se roza o solo se sugiere. La pauta diagonal viene del eje medido de tus propias letras.</p>
+    <p class="apunte" style="margin:0;max-width:76ch">Dos ajustes sobre la misma pauta. En <b>anclas</b>, arrastra el ancla de arriba y la de abajo hasta donde quieras la vocal: la derecha se posa encima, la preposada cuelga girada debajo, y lo que dejes ahí lo usan el conversor y el <code>.fea</code>. En <b>unión</b>, arrastra la salida de una letra y la entrada de la siguiente, y la holgura decide si el enlace se cierra, se roza o solo se sugiere. La pauta diagonal viene del eje medido de tus propias letras.</p>
     <div class="pauta">
       <div class="lienzo-caja"><svg id="lienzo" viewBox="0 0 1600 1000" role="img" aria-label="Pauta caligráfica con las dos letras y sus puntos de unión"></svg></div>
-      <div class="mandos">
+      <div class="mandos" id="mandos" data-modo="anclas">
         <div class="dupla">
-          <label class="mando"><span>Primera</span><select id="letra-a"></select></label>
-          <label class="mando"><span>Segunda</span><select id="letra-b"></select></label>
+          <label class="mando"><span>Qué ajusto</span><select id="modo">
+            <option value="anclas">Anclas de la vocal</option>
+            <option value="union">Unión entre letras</option>
+          </select></label>
+          <label class="mando"><span>Letra</span><select id="letra-a"></select></label>
+        </div>
+        <div class="dupla">
+          <label class="mando solo-union"><span>Segunda</span><select id="letra-b"></select></label>
+          <label class="mando solo-anclas"><span>Vocal de prueba</span><select id="vocal"></select></label>
         </div>
         <label class="mando"><span>Ángulo de la pauta <b id="v-angulo">44°</b></span><input type="range" id="angulo" min="0" max="90" value="44"></label>
         <label class="mando"><span>Separación de la pauta <b id="v-sep">300</b></span><input type="range" id="sep" min="120" max="700" step="20" value="300"></label>
-        <label class="mando"><span>Holgura del enlace <b id="v-holgura">0</b></span><input type="range" id="holgura" min="-250" max="400" step="10" value="0"></label>
+        <label class="mando solo-union"><span>Holgura del enlace <b id="v-holgura">0</b></span><input type="range" id="holgura" min="-250" max="400" step="10" value="0"></label>
         <label class="marcar"><input type="checkbox" id="ver-pauta" checked> Ver pauta diagonal</label>
-        <label class="marcar"><input type="checkbox" id="ver-vocal"> Poner vocal sobre la primera</label>
-        <div class="medida"><span>Eje de la primera</span><b id="eje-a">—</b></div>
-        <div class="medida"><span>Eje de la segunda</span><b id="eje-b">—</b></div>
-        <div class="medida"><span>Puntos de unión</span><b id="salto">—</b></div>
-        <div class="leyenda-union">
+        <div class="medida"><span>Eje de la letra</span><b id="eje-a">—</b></div>
+        <div class="medida solo-union"><span>Eje de la segunda</span><b id="eje-b">—</b></div>
+        <div class="medida"><span id="rot-puntos">Puntos</span><b id="salto">—</b></div>
+        <div class="leyenda-union solo-union">
           <span><i style="border-color:#B3541E"></i>salida (anillo)</span>
           <span><i style="border-color:#2F6B45;background:#fff"></i>entrada (disco)</span>
         </div>
+        <div class="leyenda-union solo-anclas">
+          <span><i style="border-color:#B3541E"></i>ancla arriba</span>
+          <span><i style="border-color:#2F6B45;background:#fff"></i>ancla abajo (girada)</span>
+        </div>
         <div class="fila">
           <button class="btn" id="btn-eje">Pauta al eje de la letra</button>
-          <button class="btn" id="btn-fea">Exportar .fea</button>
+          <button class="btn" id="btn-restaurar">Volver a lo medido</button>
         </div>
+        <div class="fila"><button class="btn primaria" id="btn-fea">Exportar .fea</button></div>
       </div>
     </div>
   </section>
@@ -679,7 +692,7 @@
 
     var em = META.ascent + META.descent;
     if (em !== 1000 && em !== 2048) {
-      h.push({ s: "nota", t: "El em vale <b>" + em + "</b> unidades (800 + 400), fuera de los valores habituales de 1000 y 2048. Es legal, pero si alguna vez conviene cambiarlo, hacerlo ahora cuesta mucho menos que con las tres escrituras dibujadas.",
+      h.push({ s: "nota", t: "El em vale <b>" + em + "</b> unidades (" + META.ascent + " + " + META.descent + "), fuera de los valores habituales de 1000 y 2048. Es legal, pero si alguna vez conviene cambiarlo, hacerlo ahora cuesta mucho menos que con las tres escrituras dibujadas.",
         via: "Element ▸ Font Info ▸ General ▸ Em Size, con Scale Outlines marcado" });
     }
     if (!META.cuadratica) {
@@ -895,14 +908,12 @@
         return;
       }
       if (!base) return;
-      var d = datos(base.cp);
-      var anc = d && d.a.filter(function (a) { return a[0] === p.marca && a[1] !== "mark"; })[0];
-      var bx = anc ? anc[2] : Math.round((base.c.x1 + base.c.x2) / 2);
-      var by = anc ? anc[3] : (p.marca === "arriba" ? ALTO_ARRIBA : ALTO_ABAJO);
-      var cx = Math.round((c.x1 + c.x2) / 2);
-      var contacto = t.giro ? c.y2 : c.y1;   // girada: toca por arriba; normal: por abajo
-      var tx = base.x + bx - cx, ty = by - contacto;
-      var giro = t.giro ? ' transform="rotate(180 ' + cx + " " + ((c.y1 + c.y2) / 2) + ')"' : "";
+      var ab = anclaBase(base.cp, p.marca);
+      if (!ab) return;
+      var am = t.giro ? anclaGirada(g) : anclaMarca(g.cp);
+      if (!am) return;
+      var tx = base.x + ab[0] - am[0], ty = ab[1] - am[1];
+      var giro = t.giro ? ' transform="rotate(180 ' + Math.round((c.x1 + c.x2) / 2) + " " + Math.round((c.y1 + c.y2) / 2) + ')"' : "";
       partes.push('<g transform="translate(' + Math.round(tx) + "," + Math.round(ty) + ')"><path' + giro + ' d="' + t.d + '"/></g>');
       y1 = Math.min(y1, ty + c.y1); y2 = Math.max(y2, ty + c.y2);
     });
@@ -1164,7 +1175,48 @@
   /* ---------- pauta y unión ---------- */
   var ASC = 800, DESC = -400, ALTO_ARRIBA = 312, ALTO_ABAJO = -413;
   var union = cargarUnion();
-  var pauta = { angulo: 44, sep: 300, holgura: 0, ver: true, vocal: false, a: "E00C", b: "E00B" };
+  var pauta = { modo: "anclas", angulo: 44, sep: 300, holgura: 0, ver: true, a: "E00C", b: "E00B", v: "E004" };
+
+  var anclas = cargarAnclas();
+  function cargarAnclas() {
+    try { var c = localStorage.getItem("tabure.anclas.v1"); if (c) return JSON.parse(c) || {}; }
+    catch (e) { /* sin almacenamiento */ }
+    return {};
+  }
+  function guardarAnclas() {
+    try { localStorage.setItem("tabure.anclas.v1", JSON.stringify(anclas)); } catch (e) { /* nada */ }
+  }
+  /* Punto de anclaje efectivo: lo que hayas movido, si no lo que trae el archivo,
+     si no la medida por defecto (centro de la mancha, 312 arriba / -413 abajo). */
+  function anclaBase(cp, clase) {
+    if (anclas[cp] && anclas[cp][clase]) return anclas[cp][clase];
+    var d = datos(cp);
+    var enArchivo = d && d.a.filter(function (a) { return a[0] === clase && a[1] !== "mark"; })[0];
+    if (enArchivo && enArchivo.length > 3) return [enArchivo[2], enArchivo[3]];
+    var c = caja(cp);
+    if (!c) return null;
+    return [Math.round((c.x1 + c.x2) / 2), clase === "arriba" ? ALTO_ARRIBA : ALTO_ABAJO];
+  }
+  function anclaMarca(cp) {
+    if (anclas[cp] && anclas[cp].marca) return anclas[cp].marca;
+    var d = datos(cp);
+    var enArchivo = d && d.a.filter(function (a) { return a[1] === "mark"; })[0];
+    if (enArchivo && enArchivo.length > 3) return [enArchivo[2], enArchivo[3]];
+    var c = caja(cp);
+    if (!c) return null;
+    return [Math.round((c.x1 + c.x2) / 2), c.y1];
+  }
+  /* La vocal preposada es una referencia girada 180° sobre el centro de su mancha:
+     su ancla es el ancla de la vocal derecha, girada igual. */
+  function anclaGirada(g) {
+    var c = caja(g.origen), m = anclaMarca(g.origen);
+    if (!c || !m) return null;
+    return [Math.round((c.x1 + c.x2) - m[0]), Math.round((c.y1 + c.y2) - m[1])];
+  }
+  function fijarAncla(cp, clave, punto) {
+    if (!anclas[cp]) anclas[cp] = {};
+    anclas[cp][clave] = punto;
+  }
 
   function cargarUnion() {
     try { var c = localStorage.getItem("tabure.union.v1"); if (c) return JSON.parse(c) || {}; }
@@ -1188,6 +1240,87 @@
   }
 
   function pintarPauta() {
+    if (pauta.modo === "anclas") return pintarAnclas();
+    return pintarUnion();
+  }
+
+  /* Encuadre apaisado: ensancha la caja hasta que sea más ancha que alta,
+     para que el lienzo no salga en columna. */
+  function encuadre(x1, x2, y1, y2) {
+    var min = (y2 - y1) * 1.7;
+    if (x2 - x1 < min) {
+      var falta = (min - (x2 - x1)) / 2;
+      x1 -= falta; x2 += falta;
+    }
+    return [Math.round(x1), Math.round(x2), Math.round(y1), Math.round(y2)];
+  }
+
+  /* Fondo común: pauta diagonal y renglones, en unidades de la fuente. */
+  function fondo(x1, x2, y1, y2) {
+    var partes = [], rad = pauta.angulo * Math.PI / 180;
+    if (pauta.ver && pauta.angulo > 2) {
+      var corr = (y2 - y1) / Math.tan(rad);
+      for (var x = x1 - Math.abs(corr); x < x2 + Math.abs(corr); x += pauta.sep) {
+        var fuerte = Math.abs(x % (pauta.sep * 4)) < pauta.sep / 2;
+        partes.push('<line class="diagonal' + (fuerte ? " fuerte" : "") + '" x1="' + Math.round(x) + '" y1="' + Math.round(y1) +
+          '" x2="' + Math.round(x + corr) + '" y2="' + Math.round(y2) + '"/>');
+      }
+    }
+    [[0, "línea de base"], [ASC, "ascendente"], [DESC, "descendente"]].forEach(function (r) {
+      partes.push('<line class="reglon' + (r[0] === 0 ? "" : " eje") + '" x1="' + x1 + '" y1="' + r[0] + '" x2="' + x2 + '" y2="' + r[0] + '"/>');
+      partes.push('<text class="rotulo" x="' + (x1 + 24) + '" y="' + (r[0] + 26) + '" font-size="42" transform="scale(1,-1) translate(0,' + (-2 * (r[0] + 26)) + ')">' + r[1] + "</text>");
+    });
+    return partes;
+  }
+
+  /* Modo anclas: la letra con la vocal derecha arriba y la preposada abajo.
+     Los dos tiradores son las anclas base; al moverlas, la vocal las sigue. */
+  function pintarAnclas() {
+    var svg = document.getElementById("lienzo");
+    var g = POR_CP[pauta.a], t = TRAZOS[pauta.a], c = caja(pauta.a);
+    if (!t || !c) { svg.innerHTML = ""; return; }
+    var gv = POR_CP[pauta.v], gg = GIRADA[pauta.v];
+    var arr = anclaBase(pauta.a, "arriba"), aba = anclaBase(pauta.a, "abajo");
+
+    var partes = [], caj = [c];
+    function pon(gl, ancla, girada) {
+      if (!gl) return;
+      var tt = TRAZOS[girada ? gl.origen : gl.cp], cc = caja(girada ? gl.origen : gl.cp);
+      if (!tt || !cc || !ancla) return;
+      var am = girada ? anclaGirada(gl) : anclaMarca(gl.cp);
+      if (!am) return;
+      var tx = ancla[0] - am[0], ty = ancla[1] - am[1];
+      var giro = girada ? ' transform="rotate(180 ' + Math.round((cc.x1 + cc.x2) / 2) + " " + Math.round((cc.y1 + cc.y2) / 2) + ')"' : "";
+      partes.push('<g transform="translate(' + Math.round(tx) + "," + Math.round(ty) + ')"><path class="tinta"' + giro + ' d="' + tt.d + '"/></g>');
+      caj.push({ x1: cc.x1 + tx, y1: cc.y1 + ty, x2: cc.x2 + tx, y2: cc.y2 + ty });
+    }
+    pon(gv, arr, false);
+    pon(gg, aba, true);
+
+    var x1 = Math.min.apply(null, caj.map(function (q) { return q.x1; })) - 260;
+    var x2 = Math.max.apply(null, caj.map(function (q) { return q.x2; })) + 260;
+    var y1 = Math.min.apply(null, caj.map(function (q) { return q.y1; }).concat([DESC - 80])) - 120;
+    var y2 = Math.max.apply(null, caj.map(function (q) { return q.y2; }).concat([ASC + 80])) + 120;
+    var e = encuadre(x1, x2, y1, y2); x1 = e[0]; x2 = e[1]; y1 = e[2]; y2 = e[3];
+    svg.setAttribute("viewBox", x1 + " " + (-y2) + " " + (x2 - x1) + " " + (y2 - y1));
+
+    var todo = fondo(x1, x2, y1, y2)
+      .concat(['<path class="tinta" d="' + t.d + '"/>'])
+      .concat(partes)
+      .concat([
+        '<line class="hilo" x1="' + x1 + '" y1="' + arr[1] + '" x2="' + x2 + '" y2="' + arr[1] + '"/>',
+        '<line class="hilo" x1="' + x1 + '" y1="' + aba[1] + '" x2="' + x2 + '" y2="' + aba[1] + '"/>',
+        '<circle class="tirador salida" data-tira="arriba" r="38" cx="' + arr[0] + '" cy="' + arr[1] + '"/>',
+        '<circle class="tirador entrada" data-tira="abajo" r="30" cx="' + aba[0] + '" cy="' + aba[1] + '"/>'
+      ]);
+    svg.innerHTML = '<g id="capa" transform="scale(1,-1)">' + todo.join("") + "</g>";
+
+    document.getElementById("eje-a").textContent = t.eje != null ? t.eje.toFixed(1) + "°" : "—";
+    document.getElementById("rot-puntos").textContent = "Anclas de " + g.rom;
+    document.getElementById("salto").textContent = "arr " + arr[0] + "," + arr[1] + " · ab " + aba[0] + "," + aba[1];
+  }
+
+  function pintarUnion() {
     var svg = document.getElementById("lienzo");
     var ga = POR_CP[pauta.a], gb = POR_CP[pauta.b];
     var ta = TRAZOS[pauta.a], tb = TRAZOS[pauta.b];
@@ -1200,38 +1333,13 @@
     var ca = caja(pauta.a), cb = caja(pauta.b);
     var x1 = Math.min(ca.x1, dx + cb.x1) - 220, x2 = Math.max(ca.x2, dx + cb.x2) + 220;
     var y1 = Math.min(DESC - 120, ca.y1, dy + cb.y1 - 60), y2 = Math.max(ASC + 120, ca.y2, dy + cb.y2 + 60);
+    var e = encuadre(x1, x2, y1, y2); x1 = e[0]; x2 = e[1]; y1 = e[2]; y2 = e[3];
     svg.setAttribute("viewBox", x1 + " " + (-y2) + " " + (x2 - x1) + " " + (y2 - y1));
 
-    var partes = [];
-    // pauta diagonal
-    if (pauta.ver && pauta.angulo > 2) {
-      var corr = (y2 - y1) / Math.tan(rad);
-      for (var x = x1 - Math.abs(corr); x < x2 + Math.abs(corr); x += pauta.sep) {
-        var fuerte = Math.abs(x % (pauta.sep * 4)) < pauta.sep / 2;
-        partes.push('<line class="diagonal' + (fuerte ? " fuerte" : "") + '" x1="' + Math.round(x) + '" y1="' + Math.round(y1) +
-          '" x2="' + Math.round(x + corr) + '" y2="' + Math.round(y2) + '"/>');
-      }
-    }
-    // renglones
-    [[0, "línea de base"], [ALTO_ARRIBA, "ancla arriba"], [ALTO_ABAJO, "ancla abajo"], [ASC, "ascendente"], [DESC, "descendente"]]
-      .forEach(function (r) {
-        partes.push('<line class="reglon' + (r[0] === 0 ? "" : " eje") + '" x1="' + x1 + '" y1="' + r[0] + '" x2="' + x2 + '" y2="' + r[0] + '"/>');
-        partes.push('<text class="rotulo" x="' + (x1 + 24) + '" y="' + (r[0] + 26) + '" font-size="42" transform="scale(1,-1) translate(0,' + (-2 * (r[0] + 26)) + ')">' + r[1] + "</text>");
-      });
+    var partes = fondo(x1, x2, y1, y2);
     // letras
     partes.push('<path class="tinta" d="' + ta.d + '"/>');
     partes.push('<g transform="translate(' + Math.round(dx) + "," + Math.round(dy) + ')"><path class="tinta" d="' + tb.d + '"/></g>');
-    // vocal opcional sobre la primera
-    if (pauta.vocal) {
-      var tv = TRAZOS.E001, cv = caja("E001");
-      if (tv && cv) {
-        var da = datos(pauta.a);
-        var anc = da && da.a.filter(function (a) { return a[0] === "arriba"; })[0];
-        var bx = anc ? anc[2] : Math.round((ca.x1 + ca.x2) / 2), by = anc ? anc[3] : ALTO_ARRIBA;
-        var mx = Math.round((cv.x1 + cv.x2) / 2), my = cv.y1;
-        partes.push('<g transform="translate(' + (bx - mx) + "," + (by - my) + ')"><path class="tinta" d="' + tv.d + '"/></g>');
-      }
-    }
     // hilo del enlace y tiradores
     partes.push('<path class="hilo" d="M' + ua.salida[0] + " " + ua.salida[1] + "L" + (ub.entrada[0] + dx) + " " + (ub.entrada[1] + dy) + '"/>');
     partes.push('<circle class="tirador salida" data-tira="a" r="38" cx="' + ua.salida[0] + '" cy="' + ua.salida[1] + '"/>');
@@ -1241,6 +1349,7 @@
 
     document.getElementById("eje-a").textContent = ta.eje != null ? ta.eje.toFixed(1) + "°" : "—";
     document.getElementById("eje-b").textContent = tb.eje != null ? tb.eje.toFixed(1) + "°" : "—";
+    document.getElementById("rot-puntos").textContent = "Puntos de unión";
     document.getElementById("salto").textContent =
       "sal " + Math.round(ua.salida[0]) + "," + Math.round(ua.salida[1]) +
       " · ent " + Math.round(ub.entrada[0]) + "," + Math.round(ub.entrada[1]);
@@ -1255,6 +1364,31 @@
     sa.addEventListener("change", function () { pauta.a = sa.value; pintarPauta(); });
     sb.addEventListener("change", function () { pauta.b = sb.value; pintarPauta(); });
 
+    var sv = document.getElementById("vocal");
+    sv.innerHTML = INV.filter(function (x) { return x.tipo === "vocal"; })
+      .map(function (x) { return '<option value="' + x.cp + '">' + esc(x.rom) + " · U+" + x.cp + "</option>"; }).join("");
+    sv.value = pauta.v;
+    sv.addEventListener("change", function () { pauta.v = sv.value; pintarPauta(); });
+
+    var sm = document.getElementById("modo");
+    sm.value = pauta.modo;
+    sm.addEventListener("change", function () {
+      pauta.modo = sm.value;
+      document.getElementById("mandos").setAttribute("data-modo", pauta.modo);
+      pintarPauta();
+    });
+
+    document.getElementById("btn-restaurar").addEventListener("click", function () {
+      if (pauta.modo === "anclas") {
+        delete anclas[pauta.a]; guardarAnclas();
+        avisar("Anclas de " + POR_CP[pauta.a].rom + " de vuelta a lo medido");
+      } else {
+        delete union[pauta.a]; delete union[pauta.b]; guardarUnion();
+        avisar("Puntos de unión de vuelta a lo medido");
+      }
+      pintarPauta(); pintarConversor();
+    });
+
     function rango(id, campo, sufijo, fmt) {
       var el = document.getElementById(id), out = document.getElementById("v-" + id);
       el.addEventListener("input", function () {
@@ -1267,7 +1401,6 @@
     rango("sep", "sep", "");
     rango("holgura", "holgura", "");
     document.getElementById("ver-pauta").addEventListener("change", function (e) { pauta.ver = e.target.checked; pintarPauta(); });
-    document.getElementById("ver-vocal").addEventListener("change", function (e) { pauta.vocal = e.target.checked; pintarPauta(); });
     document.getElementById("btn-eje").addEventListener("click", function () {
       var t = TRAZOS[pauta.a];
       if (!t || t.eje == null) return;
@@ -1298,6 +1431,11 @@
     svg.addEventListener("pointermove", function (ev) {
       if (!arrastrando) return;
       var u = aUnidades(ev);
+      if (arrastrando === "arriba" || arrastrando === "abajo") {
+        fijarAncla(pauta.a, arrastrando, u);
+        pintarPauta();
+        return;
+      }
       if (arrastrando === "a") {
         union[pauta.a].salida = u;
       } else {
@@ -1311,33 +1449,65 @@
       pintarPauta();
     });
     svg.addEventListener("pointerup", function () {
-      if (arrastrando) { guardarUnion(); arrastrando = null; }
+      if (!arrastrando) return;
+      if (arrastrando === "arriba" || arrastrando === "abajo") { guardarAnclas(); pintarConversor(); }
+      else { guardarUnion(); }
+      arrastrando = null;
     });
     pintarPauta();
   }
 
   function exportarFea() {
-    var lineas = [
-      "# Unión cursiva de la escritura Madera (šitakü) — generado desde la app",
-      "# Entrada y salida en unidades de la fuente. En FontForge: File > Merge Feature Info.",
+    var L = [
+      "# Escritura Madera (šitakü) — anclas de vocal y unión cursiva",
+      "# Generado desde la app. En FontForge: File ▸ Merge Feature Info.",
+      "# Ojo: si el archivo ya trae una lookup de marcas, bórrala antes de mezclar",
+      "# esta, o tendrás dos colocando la misma vocal.",
       "",
       "languagesystem DFLT dflt;",
       "languagesystem latn dflt;",
-      "",
-      "feature curs {",
-      "    lookupflag IgnoreMarks;"
+      ""
     ];
-    var n = 0;
-    INV.forEach(function (g) {
-      var u = union[g.cp];
-      if (!u || !TRAZOS[g.cp]) return;
-      lineas.push("    pos cursive uni" + g.cp + " <anchor " + Math.round(u.entrada[0]) + " " + Math.round(u.entrada[1]) +
-        "> <anchor " + Math.round(u.salida[0]) + " " + Math.round(u.salida[1]) + ">;   # " + g.rom);
-      n++;
+    // clases de marca: cada vocal con su punto de contacto
+    var vocales = 0, giradas = 0, bases = 0, uniones = 0;
+    INV.filter(function (g) { return g.tipo === "vocal" && datos(g.cp); }).forEach(function (g) {
+      var m = anclaMarca(g.cp);
+      if (!m) return;
+      L.push("markClass uni" + g.cp + " <anchor " + m[0] + " " + m[1] + "> @arriba;   # " + g.rom);
+      vocales++;
     });
-    lineas.push("} curs;", "");
-    descargar("tabure-shitaku-union.fea", lineas.join("\n"), "text/plain;charset=utf-8");
-    avisar("Exportadas " + n + " letras con punto de unión");
+    INV.filter(function (g) { return g.tipo === "vocal-girada" && datos(g.cp); }).forEach(function (g) {
+      var m = anclaGirada(g);
+      if (!m) return;
+      L.push("markClass uni" + g.cp + " <anchor " + m[0] + " " + m[1] + "> @abajo;   # " + g.rom + " preposada");
+      giradas++;
+    });
+    if (!giradas) L.push("# (sin vocales preposadas en el archivo: pasa antes giradas_shitaku.py)");
+    L.push("", "feature mark {");
+    INV.filter(function (g) {
+      return (g.tipo === "consonante" || g.tipo === "portador") && datos(g.cp);
+    }).forEach(function (g) {
+      var a = anclaBase(g.cp, "arriba"), b = anclaBase(g.cp, "abajo");
+      if (!a || !b) return;
+      L.push("    pos base uni" + g.cp + " <anchor " + a[0] + " " + a[1] + "> mark @arriba;   # " + g.rom);
+      if (giradas) L.push("    pos base uni" + g.cp + " <anchor " + b[0] + " " + b[1] + "> mark @abajo;");
+      bases++;
+    });
+    L.push("} mark;", "");
+
+    var conUnion = INV.filter(function (g) { return union[g.cp] && datos(g.cp); });
+    if (conUnion.length) {
+      L.push("feature curs {", "    lookupflag IgnoreMarks;");
+      conUnion.forEach(function (g) {
+        var u = union[g.cp];
+        L.push("    pos cursive uni" + g.cp + " <anchor " + Math.round(u.entrada[0]) + " " + Math.round(u.entrada[1]) +
+          "> <anchor " + Math.round(u.salida[0]) + " " + Math.round(u.salida[1]) + ">;   # " + g.rom);
+        uniones++;
+      });
+      L.push("} curs;", "");
+    }
+    descargar("tabure-shitaku.fea", L.join("\n"), "text/plain;charset=utf-8");
+    avisar(bases + " bases, " + (vocales + giradas) + " vocales y " + uniones + " uniones exportadas");
   }
 
   function pintarTodo() {
