@@ -120,6 +120,18 @@
   .teclado button { font-family: var(--serif); font-size: 14px; padding: 3px 8px; background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r); cursor: pointer; }
   .teclado button:hover { border-color: var(--savia); }
 
+  /* márgenes y ritmo */
+  .margenes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .campo-num { display: flex; flex-direction: column; gap: 3px; }
+  .campo-num span { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-f); }
+  .campo-num input { background: var(--sup2); border: 1px solid var(--linea); border-radius: var(--r); padding: 5px 6px; font-family: var(--mono); font-size: 12.5px; width: 100%; }
+  .campo-num input.tocado { border-color: var(--savia); }
+  .campo-num.solo-lectura input { color: var(--tinta-f); background: transparent; }
+  .ritmo { background: var(--prueba-fondo); border: 1px solid var(--linea); border-radius: var(--r); padding: 10px; overflow-x: auto; }
+  .ritmo svg { display: block; height: 64px; }
+  .ritmo svg path { fill: var(--prueba-tinta); }
+  .ritmo svg .guia { stroke: #C9862F; stroke-width: 3; stroke-dasharray: 6 6; }
+
   /* pauta y unión */
   .pauta { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(240px, 1fr); gap: 18px; align-items: start; }
   @media (max-width: 900px) { .pauta { grid-template-columns: minmax(0, 1fr); } }
@@ -320,6 +332,12 @@
           <span><i style="border-color:#B3541E"></i>salida (anillo)</span>
           <span><i style="border-color:#2F6B45;background:#fff"></i>entrada (disco)</span>
         </div>
+        <div class="solo-anclas margenes" style="grid-template-columns:1fr 1fr">
+          <label class="campo-num"><span>Arriba X</span><input type="number" id="ax-arriba"></label>
+          <label class="campo-num"><span>Arriba Y</span><input type="number" id="ay-arriba"></label>
+          <label class="campo-num"><span>Abajo X</span><input type="number" id="ax-abajo"></label>
+          <label class="campo-num"><span>Abajo Y</span><input type="number" id="ay-abajo"></label>
+        </div>
         <div class="leyenda-union solo-anclas">
           <span><i style="border-color:#B3541E"></i>ancla arriba</span>
           <span><i style="border-color:#2F6B45;background:#fff"></i>ancla abajo (girada)</span>
@@ -328,7 +346,10 @@
           <button class="btn" id="btn-eje">Pauta al eje de la letra</button>
           <button class="btn" id="btn-restaurar">Volver a lo medido</button>
         </div>
-        <div class="fila"><button class="btn primaria" id="btn-fea">Exportar .fea</button></div>
+        <div class="fila">
+          <button class="btn primaria" id="btn-fea">Exportar .fea</button>
+          <button class="btn" id="btn-metricas">Exportar métricas .py</button>
+        </div>
       </div>
     </div>
   </section>
@@ -560,6 +581,8 @@
     var d = datos(cp);
     if (!d) return false;
     if (d.cls === 4) return false;
+    var m = margenesDe(cp);
+    if (m && margenes[cp]) return m.lsb < -20 || m.rsb < -20;   // margen fijado a mano: se juzga por él
     return d.bb[0] < -20 || d.bb[2] > d.w + 20;
   }
   function sinAnclas(cp) {
@@ -772,6 +795,33 @@
   }
 
   /* ---------- ficha ---------- */
+  /* ---------- márgenes laterales y tira de ritmo ---------- */
+  function margenesHtml(g) {
+    var m = margenesDe(g.cp);
+    if (!m || (g.tipo !== "consonante" && g.tipo !== "portador")) return "";
+    var ov = margenes[g.cp] || {};
+    return '<div class="campo" style="display:flex;flex-direction:column;gap:6px">' +
+      '<span class="et" style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-f)">Márgenes laterales</span>' +
+      '<div class="margenes">' +
+        '<label class="campo-num"><span>LSB</span><input type="number" data-m="lsb" value="' + m.lsb + '" class="' + (ov.lsb != null ? "tocado" : "") + '"></label>' +
+        '<label class="campo-num"><span>RSB</span><input type="number" data-m="rsb" value="' + m.rsb + '" class="' + (ov.rsb != null ? "tocado" : "") + '"></label>' +
+        '<label class="campo-num solo-lectura"><span>Ancho</span><input type="number" data-m="w" value="' + m.w + '" readonly></label>' +
+      "</div>" +
+      '<div class="fila">' +
+        '<button class="btn" data-margen-accion="natural">Natural (' + m.natLSB + " / " + m.natRSB + ')</button>' +
+        '<button class="btn" data-margen-accion="igualar">Igualar los dos lados</button>' +
+      "</div>" +
+      '<div class="ritmo" id="ritmo-' + g.cp + '"></div>' +
+    "</div>";
+  }
+
+  function pintarRitmo(g) {
+    var el = document.getElementById("ritmo-" + g.cp);
+    if (!el) return;
+    var piezas = [{ g: g }, { g: g }, { g: g }];
+    el.innerHTML = componer(piezas) || "";
+  }
+
   function pintarFicha() {
     var g = POR_CP[seleccion];
     var d = datos(g.cp);
@@ -813,6 +863,7 @@
         '<div class="datos">' + datosHtml + "</div>" +
         '<label class="campo" style="display:flex;flex-direction:column;gap:4px"><span class="et" style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-f)">Nota de dibujo</span>' +
           '<textarea data-nota placeholder="Dudas de forma, decisiones pendientes, referencias…">' + esc(m.nota) + "</textarea></label>" +
+        margenesHtml(g) +
         "<div>" + etapasHtml + "</div>" +
       "</div>" +
       '<div class="pie-ficha"><span class="apunte">' + hechas(g) + " de " + totalTareas() + " tareas</span>" +
@@ -820,6 +871,28 @@
 
     var ta = document.querySelector("#ficha [data-nota]");
     ta.addEventListener("input", function () { m.nota = ta.value; guardar(); pintarCasillero(); });
+
+    ficha.querySelectorAll("[data-m]").forEach(function (inp) {
+      inp.addEventListener("input", function () {
+        if (inp.getAttribute("data-m") === "w") return;
+        fijarMargen(g.cp, inp.getAttribute("data-m"), inp.value === "" ? null : Math.round(+inp.value));
+        guardarMargenes();
+        pintarFicha();
+        pintarConversor();
+      });
+    });
+    var btnNat = ficha.querySelector('[data-margen-accion="natural"]');
+    if (btnNat) btnNat.addEventListener("click", function () {
+      delete margenes[g.cp]; guardarMargenes(); pintarFicha(); pintarConversor();
+      avisar("Márgenes de " + g.rom + " de vuelta a lo natural del archivo");
+    });
+    var btnIg = ficha.querySelector('[data-margen-accion="igualar"]');
+    if (btnIg) btnIg.addEventListener("click", function () {
+      var mm = margenesDe(g.cp), prom = Math.round((mm.lsb + mm.rsb) / 2);
+      fijarMargen(g.cp, "lsb", prom); fijarMargen(g.cp, "rsb", prom);
+      guardarMargenes(); pintarFicha(); pintarConversor();
+    });
+    pintarRitmo(g);
     document.querySelectorAll("#ficha [data-tarea]").forEach(function (b) {
       b.addEventListener("change", function () {
         var k = b.getAttribute("data-tarea");
@@ -900,11 +973,14 @@
       var c = caja(fuente);
       if (!c) return;
       if (!p.marca) {
-        partes.push('<g transform="translate(' + Math.round(pluma) + ',0)"><path d="' + t.d + '"/></g>');
-        base = { cp: g.cp, x: pluma, c: c };
-        x2 = Math.max(x2, pluma + Math.max(c.x2, t.w));
-        x1 = Math.min(x1, pluma + c.x1);
-        pluma += t.w;
+        var m = margenesDe(g.cp);
+        var pivote = pluma + (m ? m.dx : 0);
+        partes.push('<g transform="translate(' + Math.round(pivote) + ',0)"><path d="' + t.d + '"/></g>');
+        base = { cp: g.cp, x: pivote, c: c };
+        var avance = m ? m.w : t.w;
+        x2 = Math.max(x2, pluma + Math.max(c.x2 + (m ? m.dx : 0), avance));
+        x1 = Math.min(x1, pluma);
+        pluma += avance;
         return;
       }
       if (!base) return;
@@ -1121,7 +1197,7 @@
     "- Una decena de consonantes se sale de su ancho declarado; el espaciado está sin trabajar.",
     "- Em de 1200 unidades (Ascent 800 / Descent 400).",
     "",
-    "Herramienta de control que uso: una app de una sola página (HTML autocontenido, sin dependencias externas, localStorage con las claves \"tabure.shitaku.v2\" y \"tabure.union.v1\") que lleva incrustados los contornos reales de la fuente y por tanto dibuja los glifos sin necesidad de cargarla. Lee el .sfd en el navegador y audita anclas, anchos y lookups; lleva una lista de verificación por glifo en seis etapas; compone romanización a šitakü con la regla del portador nulo o con la vocal preposada; y tiene un editor de pauta y unión donde arrastro los puntos de entrada y salida de cada letra sobre una grilla caligráfica diagonal, y exporto el resultado como .fea.",
+    "Herramienta de control que uso: una app de una sola página (HTML autocontenido, sin dependencias externas, localStorage con las claves \"tabure.shitaku.v2\", \"tabure.union.v1\", \"tabure.anclas.v1\" y \"tabure.margenes.v1\") que lleva incrustados los contornos reales de la fuente y por tanto dibuja los glifos sin necesidad de cargarla. Lee el .sfd en el navegador y audita anclas, anchos y lookups; lleva una lista de verificación por glifo en seis etapas; compone romanización a šitakü con la regla del portador nulo o con la vocal preposada; y tiene un editor de pauta con dos modos — anclas (arrastre o coordenadas X/Y numéricas de la vocal derecha y la preposada) y unión (entrada/salida entre letras) — sobre una grilla caligráfica diagonal. La ficha de cada glifo tiene margen izquierdo y derecho editables con una tira de ritmo que repite la letra tres veces para ver el espaciado. Exporta un .fea con mark+curs y un script de Python de FontForge que aplica los márgenes vía left_side_bearing/right_side_bearing.",
     "",
     "Cómo quiero que trabajes:",
     "- Responde en español, con pasos concretos de FontForge nombrando el menú exacto (por ejemplo Element ▸ Font Info ▸ Lookups) y el atajo cuando exista.",
@@ -1176,6 +1252,31 @@
   var ASC = 800, DESC = -400, ALTO_ARRIBA = 312, ALTO_ABAJO = -413;
   var union = cargarUnion();
   var pauta = { modo: "anclas", angulo: 44, sep: 300, holgura: 0, ver: true, a: "E00C", b: "E00B", v: "E004" };
+
+  var margenes = cargarMargenes();
+  function cargarMargenes() {
+    try { var c = localStorage.getItem("tabure.margenes.v1"); if (c) return JSON.parse(c) || {}; }
+    catch (e) { /* sin almacenamiento */ }
+    return {};
+  }
+  function guardarMargenes() {
+    try { localStorage.setItem("tabure.margenes.v1", JSON.stringify(margenes)); } catch (e) { /* nada */ }
+  }
+  /* Márgenes efectivos de un glifo: lo que hayas fijado a mano, si no lo natural
+     del archivo (x1 de la mancha como LSB, ancho-x2 como RSB). */
+  function margenesDe(cp) {
+    var c = caja(cp), t = TRAZOS[cp];
+    if (!c || !t) return null;
+    var natLSB = Math.round(c.x1), natRSB = Math.round(t.w - c.x2);
+    var ov = margenes[cp] || {};
+    var lsb = ov.lsb != null ? ov.lsb : natLSB;
+    var rsb = ov.rsb != null ? ov.rsb : natRSB;
+    return { lsb: lsb, rsb: rsb, w: lsb + (c.x2 - c.x1) + rsb, natLSB: natLSB, natRSB: natRSB, dx: lsb - c.x1, ink: c.x2 - c.x1 };
+  }
+  function fijarMargen(cp, campo, valor) {
+    if (!margenes[cp]) margenes[cp] = {};
+    margenes[cp][campo] = valor;
+  }
 
   var anclas = cargarAnclas();
   function cargarAnclas() {
@@ -1318,7 +1419,12 @@
     document.getElementById("eje-a").textContent = t.eje != null ? t.eje.toFixed(1) + "°" : "—";
     document.getElementById("rot-puntos").textContent = "Anclas de " + g.rom;
     document.getElementById("salto").textContent = "arr " + arr[0] + "," + arr[1] + " · ab " + aba[0] + "," + aba[1];
+    if (!numerosEnEdicion) {
+      document.getElementById("ax-arriba").value = arr[0]; document.getElementById("ay-arriba").value = arr[1];
+      document.getElementById("ax-abajo").value = aba[0]; document.getElementById("ay-abajo").value = aba[1];
+    }
   }
+  var numerosEnEdicion = false;
 
   function pintarUnion() {
     var svg = document.getElementById("lienzo");
@@ -1411,6 +1517,21 @@
       avisar("Pauta ajustada al eje de " + POR_CP[pauta.a].rom + ": " + pauta.angulo + "°");
     });
     document.getElementById("btn-fea").addEventListener("click", exportarFea);
+    document.getElementById("btn-metricas").addEventListener("click", exportarMetricas);
+
+    [["ax-arriba", "arriba", 0], ["ay-arriba", "arriba", 1], ["ax-abajo", "abajo", 0], ["ay-abajo", "abajo", 1]].forEach(function (spec) {
+      var inp = document.getElementById(spec[0]);
+      inp.addEventListener("focus", function () { numerosEnEdicion = true; });
+      inp.addEventListener("blur", function () { numerosEnEdicion = false; });
+      inp.addEventListener("input", function () {
+        if (pauta.modo !== "anclas" || inp.value === "") return;
+        var actual = anclaBase(pauta.a, spec[1]).slice();
+        actual[spec[2]] = Math.round(+inp.value);
+        fijarAncla(pauta.a, spec[1], actual);
+        guardarAnclas();
+        pintarPauta(); pintarConversor();
+      });
+    });
 
     // arrastre de los tiradores
     var svg = document.getElementById("lienzo"), arrastrando = null;
@@ -1455,6 +1576,51 @@
       arrastrando = null;
     });
     pintarPauta();
+  }
+
+  function exportarMetricas() {
+    var L = [
+      "#!/usr/bin/env python3",
+      '"""Aplica los márgenes laterales fijados en la app a un .sfd de la escritura šitakü.',
+      "",
+      "Generado desde la app: cada línea mueve el margen izquierdo (que arrastra el",
+      'trazo entero y ensancha el glifo) y luego fija el derecho. Uso:',
+      "    python3 metricas_shitaku.py Shitaku_1.2.sfd -o Shitaku_1.3.sfd",
+      '"""',
+      "import argparse, sys",
+      "try:",
+      "    import fontforge",
+      "except ImportError:",
+      "    sys.exit('Instala python3-fontforge y usa ese mismo Python.')",
+      "",
+      "p = argparse.ArgumentParser()",
+      "p.add_argument('sfd')",
+      "p.add_argument('-o', '--salida')",
+      "p.add_argument('--otf')",
+      "args = p.parse_args()",
+      "salida = args.salida or args.sfd.replace('.sfd', '-margenes.sfd')",
+      "",
+      "f = fontforge.open(args.sfd)",
+      "n = 0",
+      ""
+    ];
+    var n = 0;
+    Object.keys(margenes).forEach(function (cp) {
+      var ov = margenes[cp];
+      if (ov.lsb == null && ov.rsb == null) return;
+      var m = margenesDe(cp);
+      if (!m) return;
+      L.push("if 0x" + cp + " in f:");
+      L.push("    g = f[0x" + cp + "]");
+      L.push("    g.left_side_bearing = " + m.lsb + "   # " + POR_CP[cp].rom);
+      L.push("    g.right_side_bearing = " + m.rsb + ";  n += 1");
+      n++;
+    });
+    if (!n) { avisar("No hay márgenes fijados a mano todavía."); return; }
+    L.push("", "f.save(salida)", "if args.otf: f.generate(args.otf)",
+      "print('%s: %d glifos con margen ajustado' % (salida, n))");
+    descargar("tabure-shitaku-metricas.py", L.join("\n"), "text/x-python;charset=utf-8");
+    avisar("Script con " + n + " glifos listo para ejecutar");
   }
 
   function exportarFea() {
