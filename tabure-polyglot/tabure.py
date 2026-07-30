@@ -368,6 +368,10 @@ def revisar(paquete, ignorar=IGNORAR_POR_DEFECTO):
         elif clase and valor and valor not in nombres_clase[clase]:
             h.append(Hallazgo(ERROR, "conjugación",
                               "«%s» filtra por «%s = %s», valor inexistente" % (etiqueta, clase, valor)))
+        if p and not (r.get("dimension") or "").strip():
+            h.append(Hallazgo(AVISO, "conjugación",
+                              "«%s» no declara \"dimension\": al inyectar se busca la casilla "
+                              "por la etiqueta, que es más frágil si la renombras" % etiqueta))
         if not r.get("tests"):
             h.append(Hallazgo(AVISO, "conjugación", "«%s» sin casos de prueba" % etiqueta))
         for t in r.get("tests") or []:
@@ -984,7 +988,63 @@ def cmd_inyectar(args):
             print(gris("    … y %d más" % (len(combs) - 10)))
     for a in avisos:
         print(ambar("\n  AVISO  ") + a)
+
+    # Autoverificación: releer lo que se acaba de escribir y confirmar que
+    # los recuentos cuadran, en vez de asumir que la escritura fue fiel.
+    try:
+        releido, _ = extraer(destino)
+        print(gris("\n  Verificación (releyendo %s):" % os.path.basename(destino)))
+        for k in pedidas:
+            esperado, obtenido = informe.get(k, 0), len(releido.get(k, []))
+            ok = obtenido >= esperado
+            print("    %s %-11s %d escritas · %d releídas"
+                  % (verde("✓") if ok else rojo("✗"), k, esperado, obtenido))
+        if "rules" in pedidas and paquete["rules"]:
+            con_casilla = sum(1 for r in releido.get("rules", []) if r.get("pgComb"))
+            print("    %s %-11s %d de %d con casilla de declinación asignada"
+                  % (verde("✓") if con_casilla else ambar("·"), "rules",
+                     con_casilla, len(releido.get("rules", []))))
+    except Exception as exc:
+        print(ambar("\n  No se pudo autoverificar: %s" % exc))
+
     print("\n" + gris("Cada sección escrita reemplaza la que hubiera. Tu .pgd de origen no se toca."))
+    return 0
+
+
+def cmd_colocar(args):
+    """Mueve el paquete recién exportado (típicamente en Descargas) a la
+    carpeta de trabajo, como paquete.json, rotando el anterior. Deja los
+    dos únicos archivos que el mecanismo usa junto al .pgd (o donde se pida)
+    y no deja copia suelta en el origen.
+    """
+    try:
+        origen = resolver_paquete(args.origen)
+    except IOError as exc:
+        print(rojo(str(exc)))
+        return 1
+    try:
+        with io.open(origen, "r", encoding="utf-8") as fh:
+            datos = json.load(fh)
+    except (IOError, OSError, ValueError) as exc:
+        print(rojo("No se pudo leer %s: %s" % (origen, exc)))
+        return 1
+    for k in SECCIONES:
+        datos.setdefault(k, [])
+
+    try:
+        destino, rotado = guardar_paquete(datos, args.carpeta)
+    except IOError as exc:
+        print(rojo(str(exc)))
+        return 1
+
+    if os.path.abspath(origen) != os.path.abspath(destino):
+        os.remove(origen)
+
+    print(negrita("\nColocado en %s" % destino))
+    print(gris("  " + _resumen(datos)))
+    if rotado:
+        print(gris("  versión anterior: %s" % os.path.basename(rotado)))
+    print(gris("  %s eliminado del origen" % os.path.basename(origen)))
     return 0
 
 
@@ -1114,6 +1174,14 @@ def main(argv=None):
                     help="Escribir aunque el paquete tenga errores")
     sp.set_defaults(func=cmd_inyectar)
 
+    sp = sub.add_parser("colocar",
+                        help="Mueve el paquete exportado a la carpeta de trabajo como paquete.json")
+    sp.add_argument("--origen", required=True,
+                    help="Archivo, o carpeta (p. ej. Descargas) de la que se toma el más reciente")
+    sp.add_argument("--carpeta", required=True,
+                    help="Carpeta de trabajo; lo natural es la misma del .pgd")
+    sp.set_defaults(func=cmd_colocar)
+
     sp = sub.add_parser("ordenar",
                         help="Lista lo que sobra en la carpeta de trabajo y opcionalmente lo borra")
     sp.add_argument("--carpeta", required=True)
@@ -1126,7 +1194,7 @@ def main(argv=None):
     sp.set_defaults(func=cmd_inspeccionar)
 
     args = p.parse_args(argv)
-    for campo in ("pgd", "paquete", "salida", "carpeta"):
+    for campo in ("pgd", "paquete", "salida", "carpeta", "origen"):
         v = getattr(args, campo, None)
         if isinstance(v, str) and v.startswith("~"):
             setattr(args, campo, os.path.expanduser(v))

@@ -23,6 +23,7 @@ Requiere Python 3.8 o superior y nada más. Verificado contra PolyGlot 3.6.1.
 | `revisar` | Valida el paquete y lista errores y avisos. No escribe. |
 | `probar` | Aplica cada regla al léxico real y muestra qué produce. |
 | `inyectar` | Escribe el paquete en una **copia** del `.pgd`. |
+| `colocar` | Mueve el paquete exportado a la carpeta de trabajo, renombrado y rotado. |
 | `ordenar` | Lista lo que sobra en la carpeta de trabajo y opcionalmente lo borra. |
 | `inspeccionar` | Describe la estructura interna de un `.pgd`. Solo lectura. |
 
@@ -126,6 +127,25 @@ reemplazar: $1$2$1s          ← arlan → arlanas
 que espera Python para que una regla dé el mismo resultado aquí que en la aplicación.
 
 ---
+
+### colocar
+
+El navegador siempre descarga a Descargas; no hay forma de elegir la carpeta desde el
+propio artefacto. `colocar` cierra ese hueco: mueve el `paquete.json` recién
+exportado a la carpeta de trabajo (la del `.pgd`, para tenerlo todo centralizado, o
+cualquier otra que prefieras), rotando el anterior, y borra la copia de Descargas.
+
+```bash
+python3 tabure.py colocar --origen ~/Descargas --carpeta ~/Tabure
+```
+
+`--origen` también acepta una carpeta y toma el `paquete*.json` más reciente.
+
+### La autoverificación de `inyectar`
+
+Tras escribir, `inyectar` vuelve a leer el `.pgd` que acaba de producir y compara los
+recuentos con lo que pedía escribir — incluidas las reglas que quedaron con casilla de
+declinación asignada. No asume que la escritura fue fiel: lo comprueba.
 
 ## Dos archivos, no más
 
