@@ -1,32 +1,17 @@
 # tabure-polyglot
 
-Puente entre un vault de **Obsidian** y **PolyGlot** para el trabajo sobre la lengua
-tabure'shi.
+Puente entre el cuaderno web de **tabure'shi** y **PolyGlot**.
 
-A diferencia del cuaderno web, esto corre en **tu propia máquina**, así que sí tiene
-acceso real al disco: lee las notas de tu vault, las valida, y escribe los archivos
-que PolyGlot importa.
+Un solo formato de datos —el paquete JSON, el mismo que usa el cuaderno— y cinco
+comandos alrededor:
 
 ```
-Obsidian (donde escribes)
-    ↓  tabure.py revisar   ← detecta incoherencias
-    ↓  tabure.py exportar  ← genera CSV + Markdown
-PolyGlot (Import from File)
+        .pgd  ──extraer──▶  paquete.json  ──inyectar──▶  .pgd nuevo
+                                 │
+                    revisar ◀────┴────▶ probar
 ```
 
----
-
-## Instalación
-
-No hay instalación. Solo necesitas Python 3.8 o superior, que ya viene en macOS y
-Linux (en Windows se descarga de python.org).
-
-```bash
-python3 tabure.py --help
-```
-
-Si tienes `PyYAML` instalado se usa automáticamente; si no, el script trae su propio
-lector de frontmatter y funciona igual.
+Requiere Python 3.8 o superior y nada más. Verificado contra PolyGlot 3.6.1.
 
 ---
 
@@ -34,287 +19,115 @@ lector de frontmatter y funciona igual.
 
 | Comando | Qué hace |
 |---|---|
-| `extraer` | Saca todo el contenido de tu `.pgd` al formato del cuaderno. Solo lectura. |
-| `revisar` | Valida el vault y muestra errores y avisos. No escribe nada. |
-| `probar` | Aplica cada regla de conjugación al léxico real y muestra qué produce. |
-| `exportar` | Valida y genera los archivos para PolyGlot. |
-| `vigilar` | Repite `exportar` automáticamente cada vez que guardas una nota. |
-| `inyectar` | Escribe las secciones elegidas dentro de una **copia** del `.pgd`. |
-| `inspeccionar` | Describe la estructura interna de tu archivo `.pgd`. Solo lectura. |
-| `importar-cuaderno` | Convierte el respaldo JSON del cuaderno web en notas del vault. |
+| `extraer` | Saca el contenido de un `.pgd` al paquete JSON. Solo lectura. |
+| `revisar` | Valida el paquete y lista errores y avisos. No escribe. |
+| `probar` | Aplica cada regla al léxico real y muestra qué produce. |
+| `inyectar` | Escribe el paquete en una **copia** del `.pgd`. |
+| `inspeccionar` | Describe la estructura interna de un `.pgd`. Solo lectura. |
 
-### Sacar lo que ya tienes en PolyGlot
-
-Si tu diccionario ya tiene trabajo hecho, este es el punto de partida: no hay que
-volver a escribir nada.
+### extraer
 
 ```bash
-python3 tabure.py extraer --pgd ~/Tabure/Tabure.pgd --salida ~/Desktop/paquete.json
+python3 tabure.py extraer --pgd "~/Tabure/Tabure.pgd" --salida ~/Tabure/paquete.json
 ```
 
-Lee el `.pgd` **sin modificarlo** y produce un JSON con la fonología (grafema, AFI,
-romanización y tecla de sustitución), el léxico, las categorías con sus dimensiones,
-las reglas de conjugación y las secciones de gramática. Ese JSON se pega en el
-cuaderno web con **Actualizar**.
+Produce la fonología (grafema, AFI, romanización y tecla de sustitución), el léxico,
+las categorías con sus dimensiones, las reglas de conjugación con su casilla de
+declinación, y las secciones de gramática. Ese JSON se pega en el cuaderno con
+**Actualizar**.
 
-De dónde sale cada dato:
-
-| En el cuaderno | En PolyGlot |
-|---|---|
-| Grafema y AFI | Guía de pronunciación (`proGuide`) |
-| Romanización | Guía de romanización (`romGuide`) |
-| Tecla de sustitución | Sustitución de caracteres (`langPropCharRep`) |
-| Dimensiones de una categoría | Declinaciones enlazadas a esa categoría |
-| Reglas de conjugación | Cada transformación del generador, por separado |
-
-Verificado contra PolyGlot 3.6.1. Si tu versión guarda las cosas con otros nombres,
-`inspeccionar` te lo dirá.
-
-### Empezar desde el cuaderno web
-
-Si ya tienes datos en el cuaderno, descarga el JSON (botón **Descargar JSON**) y
-siembra el vault con él:
+### revisar
 
 ```bash
-python3 tabure.py importar-cuaderno ~/Descargas/tabureshi-cuaderno-backup.json \
-    --vault ~/Obsidian/Tabure
+python3 tabure.py revisar --paquete ~/Tabure/paquete.json
 ```
 
-### El ciclo de trabajo diario
+**Fonología** — grafemas duplicados, romanizaciones ambiguas, grafemas sin AFI.
 
-```bash
-# Mientras escribes en Obsidian, deja esto corriendo en una terminal:
-python3 tabure.py vigilar --vault ~/Obsidian/Tabure --salida ~/Tabure/polyglot
-```
-
-Cada vez que guardas una nota, revalida todo y regenera los archivos. Luego, en
-PolyGlot: **Archivo → Import from File**, eliges `lexicon.csv` y mapeas las columnas.
-
----
-
-## Cómo se escriben las notas
-
-La herramienta reconoce una nota por su campo `tipo:` o por la carpeta donde está
-(`Lexicon/`, `Conjugaciones/`, `Gramatica/`, `Categorias/`, `Fonologia.md`). Los
-nombres de campo aceptan sinónimos: `palabra` o `lexema`, `glosa` o `definicion`,
-`romanizacion` o `transcripcion`, etc.
-
-### Un lexema — `Lexicon/sherema.md`
-
-```markdown
----
-tipo: lexema
-palabra: sherema
-ipa: ʃeˈɾema
-romanizacion: sherema
-pos: sustantivo
-glosa: nube
-etimologia: de *sher- "vapor" + -ema
-estado: verificado
----
-
-Cualquier nota libre va aquí abajo.
-```
-
-### El inventario fonológico — `Fonologia.md`
-
-Una sola nota con una tabla. Los dígrafos (`sh`) se reconocen por coincidencia más
-larga, así que `sherema` se segmenta como `sh-e-r-e-m-a`, no `s-h-...`.
-
-```markdown
----
-tipo: fonologia
----
-
-| Grafema | IPA | Romanización | Reemplazo | Notas |
-|---|---|---|---|---|
-| č | tʃ | ch | 1 | se escribe tecleando 1 |
-| sh | ʃ | sh |  | dígrafo |
-| ' | ʔ | ' |  | oclusiva glotal |
-```
-
-La columna **Reemplazo** es la *tecla de sustitución* de PolyGlot, que solo admite
-**un carácter de entrada**: al teclear `1` aparece `č`. Se deja vacía en los
-grafemas que ya se escriben directamente con el teclado.
-
-### Una regla de conjugación — `Conjugaciones/pasado.md`
-
-```markdown
----
-tipo: regla
-etiqueta: Pasado — verbos terminados en -a
-pos: verbo
-buscar: a$
-reemplazar: e
-flags: ""
-pruebas:
-  - entrada: tama
-    esperado: tame
----
-```
-
-Los `pruebas` son el punto importante: la herramienta ejecuta cada caso y te avisa
-si la regla deja de producir el resultado esperado.
-
-### Una categoría — `Categorias/verbo.md`
-
-```markdown
----
-tipo: pos
-etiqueta: verbo
-dimensiones: [tiempo, aspecto, persona, número]
----
-```
-
-### Una sección de gramática — `Gramatica/01-morfologia-verbal.md`
-
-```markdown
----
-tipo: gramatica
-etiqueta: Morfología verbal
-orden: 1
----
-
-El cuerpo de la sección, en Markdown normal.
-```
-
----
-
-## Qué valida `revisar`
-
-**Fonología** — grafemas duplicados; romanizaciones ambiguas (dos grafemas que se
-transcriben igual); grafemas sin IPA.
-
-**Teclas de sustitución** — como PolyGlot solo acepta un carácter de entrada, aquí
+**Teclas de sustitución** — PolyGlot solo acepta un carácter de entrada, así que aquí
 se concentran los fallos que rompen la escritura sin avisar: teclas de más de un
-carácter; dos grafemas peleándose la misma tecla; una tecla que también es un
-grafema real de la lengua (se sustituiría sola); y el más traicionero, una tecla que
-aparece dentro de una palabra del léxico, que haría imposible teclear esa palabra.
-También avisa de grafemas no tecleables que se quedaron sin tecla asignada.
+carácter, dos grafemas peleándose la misma tecla, una tecla que también es un grafema
+real, y la más traicionera, una tecla que aparece dentro de una palabra del léxico.
 
-```
-ERROR  teclas       Tecla repetida «1»: la usan «š» y «ž»
-ERROR  teclas       La tecla «1» (de «š») aparece dentro de palabras del léxico
-                    (ta1ma): al teclearlas se sustituiría
-```
+**Cobertura** — segmenta cada palabra contra el inventario y reporta los caracteres
+que uses sin haber declarado. Los dígrafos se reconocen por coincidencia más larga.
+El apóstrofe se ignora: es marca de límite morfológico, no un fonema.
 
-**Cobertura** — el chequeo más útil: segmenta cada palabra del léxico contra el
-inventario y reporta cualquier carácter que uses en una palabra pero no hayas
-declarado en Phonology. También señala grafemas declarados que ningún lexema usa.
+**Categorías y clases** — categorías usadas sin declarar, categorías sin descripción,
+clases que apuntan a categorías inexistentes, palabras en alcance sin valor asignado.
 
-```
-ERROR  cobertura    El carácter «q» [LATIN SMALL LETTER Q] aparece en el léxico
-                    pero no está en Phonology (qwixa)
-```
+**Conjugación** — regex que no compila, casos de prueba que fallan, reglas sin anclar,
+filtros de clase que no existen, y el uso de `\1` donde PolyGlot espera `$1`.
 
-**Parts of Speech** — categorías usadas en el léxico pero no declaradas; categorías
-declaradas sin lexemas; categorías sin dimensiones de conjugación.
-
-**Conjugación** — regex que no compila; casos de prueba que fallan (con el resultado
-real vs. el esperado); reglas sin anclar (`^`/`$`), que es la causa más común de que
-el Autogenerator de PolyGlot altere el interior de una palabra; reglas que apuntan a
-una categoría inexistente; reglas muertas que no modifican ningún lexema.
-
-```
-ERROR  conjugación  «Prueba que falla»: tama → toma, se esperaba tamo
-AVISO  conjugación  «Prueba que falla» no está anclada (sin ^ ni $)
-```
-
-**Gramática** — secciones vacías, números de orden repetidos.
-
-## Ensayar las reglas contra el léxico
-
-Una regla puede compilar sin error y aun así no hacer nada, o hacer algo distinto de
-lo que crees. `probar` la aplica a las palabras reales de su categoría y clasifica el
-resultado en **activa** (modifica palabras), **inerte** (no cambia ninguna, casi
-siempre síntoma de un patrón mal escrito), **error** (la regex no compila) y **sin
-léxico** (su categoría está vacía).
+### probar
 
 ```bash
-python3 tabure.py probar --vault ~/Obsidian/Tabure
+python3 tabure.py probar --paquete ~/Tabure/paquete.json --solo inerte
 ```
 
-Las transformaciones que estén bien conviértelas en casos de prueba: a partir de ahí,
-si cambias la fonología o reescribes la regla, `revisar` te avisa si dejó de funcionar.
+Clasifica cada regla en **activa** (modifica palabras), **inerte** (no cambia ninguna,
+casi siempre síntoma de un patrón mal escrito), **error** y **sin léxico**. Respeta el
+filtro de clase léxica de cada regla.
 
-`revisar` y `exportar` salen con código 1 si hay errores, así que puedes encadenarlos
-en un script.
-
----
-
-## Archivos que genera `exportar`
-
-| Archivo | Para qué |
-|---|---|
-| `lexicon.csv` | Importar en PolyGlot con el asistente Import from File. |
-| `fonologia.csv` | Referencia al llenar la pestaña Phonology. |
-| `conjugaciones.csv` | Referencia al llenar el Conjugation Autogenerator. |
-| `gramatica.md` | Pegar en el libro de Grammar. |
-| `informe.md` | El resultado de la revisión, para guardarlo en el vault. |
-
----
-
-## Escribir de vuelta en PolyGlot
-
-`inyectar` escribe dentro del `.pgd`, **nunca sobre tu archivo**: siempre produce uno
-nuevo.
+### inyectar
 
 ```bash
-# todo de una vez
 python3 tabure.py inyectar --pgd "~/Tabure/Tabure.pgd" \
     --paquete ~/Tabure/paquete.json --salida ~/Tabure/ --secciones todo
-
-# o una sección concreta
-python3 tabure.py inyectar --pgd "~/Tabure/Tabure.pgd" \
-    --paquete ~/Tabure/paquete.json --salida ~/Tabure/ --secciones phonology
 ```
 
-Secciones válidas: `grammar`, `pos`, `lexicon`, `phonology`, `rules`, o `todo`.
-Añade `--sobrescribir` para pisar una salida que ya exista.
+Secciones: `phonology`, `pos`, `lexicon`, `rules`, `grammar`, o `todo`.
+`--sobrescribir` permite pisar una salida existente; `--sin-revisar` escribe aunque el
+paquete tenga errores (por defecto se niega y los lista).
 
-**Cada sección escrita reemplaza por completo la que hubiera en el archivo.** No suma:
-lo que no esté en el paquete desaparece de esa sección. El resto del contenedor se
-copia intacto, incluida la carpeta `reversion/` con el historial.
+**Cada sección escrita reemplaza la que hubiera**: lo que no esté en el paquete
+desaparece de esa sección. El resto del contenedor se copia intacto, incluida la
+carpeta `reversion/` con el historial.
 
-Detalles que la escritura respeta:
+Lo que la escritura resuelve por ti:
 
-- Las **categorías** se numeran de nuevo, y el léxico y las reglas se reenlazan a los
-  ids nuevos. Por eso conviene escribir `pos` junto con `lexicon` o `rules`.
-- Los **fonemas** recuperan sus barras (`tʃ` → `/tʃ/`), que es como PolyGlot los guarda.
-- Las **reglas** conservan su enlace a la casilla de declinación (`decGenRuleComb`), y
-  las transformaciones que salieron de una misma regla vuelven a agruparse en ella.
-  Una regla creada fuera de PolyGlot carece de ese enlace y se avisa al escribirla.
-- Las **clases léxicas** no se escriben: ese contenedor estaba vacío en el archivo de
-  referencia, así que su estructura no es conocida. Créalas a mano en PolyGlot.
+- **Los ids de categoría se conservan por nombre.** Renumerarlos desconectaría las
+  declinaciones, que apuntan a la categoría por su id; las categorías nuevas reciben
+  un id libre.
+- **La casilla de declinación de cada regla.** Una regla sin `decGenRuleComb` se guarda
+  pero PolyGlot no la aplica a ninguna forma — es la causa más común de que una regla
+  «no entre». Si la regla trae su casilla original, se conserva; si no, se resuelve
+  emparejando su campo `dimension` (o su etiqueta) con una dimensión de su categoría.
+  El comando informa de cada casilla que resolvió y de las que no pudo.
+- **Los fonemas recuperan sus barras** (`tʃ` → `/tʃ/`), que es como PolyGlot los guarda.
+- **Las transformaciones se reagrupan** en la regla original de la que salieron.
 
-Abre el archivo nuevo en PolyGlot y compruébalo antes de darlo por bueno.
+Las **clases léxicas no se escriben**: ese contenedor está vacío en el archivo de
+referencia y su estructura interna no es conocida. Créalas a mano en PolyGlot.
 
-## Sobre escribir directamente en el `.pgd`
-
-El comando `inspeccionar` abre tu archivo de PolyGlot **sin modificarlo** y describe
-su estructura XML real:
+### inspeccionar
 
 ```bash
-python3 tabure.py inspeccionar --pgd ~/Tabure/Tabure.pgd --salida estructura.md
+python3 tabure.py inspeccionar --pgd "~/Tabure/Tabure.pgd" --salida estructura.md
 ```
 
-Esto existe porque el formato `.pgd` no está documentado públicamente y varía entre
-versiones de PolyGlot: escribir en él a ciegas corrompería el archivo. El camino
-seguro es mirar primero la estructura de *tu* archivo y recién entonces añadir
-escritura directa.
-
-Por ahora la herramienta **no escribe en el `.pgd`**, a propósito. La importación por
-CSV es reversible y no puede dañar tu diccionario.
-
-Haz siempre una copia de tu `.pgd` antes de importar nada.
+Además del árbol de etiquetas, lista **las declinaciones de cada categoría con el id de
+cada dimensión** — que es lo que permite saber a qué casilla puede atarse una regla.
 
 ---
 
-## Carpeta `ejemplos/`
+## Sintaxis de las reglas
 
-Un vault mínimo y funcional con datos de muestra (no son datos reales de tabure'shi;
-reemplázalos). Sirve para ver la herramienta funcionando antes de apuntarla a tu vault:
+PolyGlot está escrito en Java, así que las retro-referencias van con **`$1`**, no con
+`\1`:
 
-```bash
-python3 tabure.py revisar --vault ejemplos
 ```
+buscar:     ([aeiou])([^aeiou])$
+reemplazar: $1$2$1s          ← arlan → arlanas
+```
+
+`revisar` marca como error el uso de `\1`, y esta herramienta traduce `$1` a la forma
+que espera Python para que una regla dé el mismo resultado aquí que en la aplicación.
+
+---
+
+## datos/tabureshi.json
+
+Copia versionada del contenido de la lengua: fonología, categorías, clases, léxico,
+reglas y las secciones de la gramática. Es el mismo paquete que viene incluido en el
+cuaderno, y sirve de respaldo con historial.

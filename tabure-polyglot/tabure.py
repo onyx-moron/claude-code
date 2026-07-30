@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-tabure.py — Puente entre un vault de Obsidian y PolyGlot para la lengua tabure'shi.
+tabure.py — Puente entre el cuaderno de tabure'shi y PolyGlot.
 
-Lee las notas del vault (lexemas, fonología, reglas de conjugación y secciones
-gramaticales), las valida, y genera los archivos que PolyGlot importa.
+Un solo formato de datos, el paquete JSON, y cinco comandos alrededor:
 
-Corre con Python 3.8+ y solo la biblioteca estándar. Si tienes PyYAML instalado
-lo usa; si no, aplica un lector de frontmatter reducido que cubre el formato
-documentado en el README.
+    extraer       .pgd  → paquete.json     (solo lectura)
+    revisar       paquete.json → informe   (no escribe)
+    probar        paquete.json → ensayo de reglas contra el léxico
+    inyectar      paquete.json → .pgd nuevo
+    inspeccionar  .pgd  → estructura interna (solo lectura)
 
-Uso rápido:
-    python3 tabure.py revisar   --vault ~/Obsidian/Tabure
-    python3 tabure.py exportar  --vault ~/Obsidian/Tabure --salida ~/Tabure/polyglot
-    python3 tabure.py vigilar   --vault ~/Obsidian/Tabure --salida ~/Tabure/polyglot
-    python3 tabure.py inspeccionar --pgd ~/Tabure/Tabure.pgd
-    python3 tabure.py importar-cuaderno respaldo.json --vault ~/Obsidian/Tabure
+El paquete es el mismo JSON que consume el cuaderno web, con las claves
+phonology, pos, classes, lexicon, rules y grammar.
+
+Requiere Python 3.8+ y solo la biblioteca estándar. Verificado contra
+PolyGlot 3.6.1.
 """
 
 import argparse
-import csv
 import io
 import json
 import os
@@ -28,11 +27,7 @@ import sys
 import time
 import unicodedata
 import zipfile
-
-try:
-    import yaml as _pyyaml
-except Exception:
-    _pyyaml = None
+import xml.etree.ElementTree as ET
 
 
 # --------------------------------------------------------------------------
@@ -42,381 +37,159 @@ except Exception:
 _COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
 
 
-def _c(texto, codigo):
-    return "\033[%sm%s\033[0m" % (codigo, texto) if _COLOR else texto
+def _c(t, code):
+    return "\033[%sm%s\033[0m" % (code, t) if _COLOR else t
 
 
-def rojo(t):
-    return _c(t, "31")
+def rojo(t): return _c(t, "31")
+def ambar(t): return _c(t, "33")
+def verde(t): return _c(t, "32")
+def gris(t): return _c(t, "90")
+def negrita(t): return _c(t, "1")
 
 
-def ambar(t):
-    return _c(t, "33")
-
-
-def verde(t):
-    return _c(t, "32")
-
-
-def gris(t):
-    return _c(t, "90")
-
-
-def negrita(t):
-    return _c(t, "1")
-
-
-ERROR = "error"
-AVISO = "aviso"
+ERROR, AVISO = "error", "aviso"
 
 
 class Hallazgo(object):
-    """Un problema detectado durante la revisión."""
-
-    def __init__(self, nivel, area, mensaje, origen=None):
-        self.nivel = nivel
-        self.area = area
-        self.mensaje = mensaje
-        self.origen = origen
+    def __init__(self, nivel, area, mensaje):
+        self.nivel, self.area, self.mensaje = nivel, area, mensaje
 
     def linea(self):
         etiqueta = rojo("ERROR") if self.nivel == ERROR else ambar("AVISO")
-        cola = gris("  (%s)" % self.origen) if self.origen else ""
-        return "  %s  %-12s %s%s" % (etiqueta, self.area, self.mensaje, cola)
-
-    def plano(self):
-        cola = " (%s)" % self.origen if self.origen else ""
-        return "- **%s** · %s — %s%s" % (self.nivel.upper(), self.area, self.mensaje, cola)
+        return "  %s  %-12s %s" % (etiqueta, self.area, self.mensaje)
 
 
 # --------------------------------------------------------------------------
-# Lectura de frontmatter
+# El paquete
 # --------------------------------------------------------------------------
 
-_RE_CLAVE = re.compile(r"^([^:#][^:]*):\s*(.*)$")
+SECCIONES = ["phonology", "pos", "classes", "lexicon", "rules", "grammar"]
 
 
-def _escalar(bruto):
-    """Convierte un valor de frontmatter en str / list / bool."""
-    s = bruto.strip()
-    if not s:
-        return ""
-    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
-        return s[1:-1]
-    if s.startswith("[") and s.endswith("]"):
-        interior = s[1:-1].strip()
-        if not interior:
-            return []
-        return [_escalar(p) for p in interior.split(",")]
-    # Solo true/false se vuelven booleanos: en una lengua "no" o "si" pueden
-    # ser glosas legítimas y no deben coercionarse.
-    if s.lower() in ("true", "false"):
-        return s.lower() == "true"
-    return s
+def cargar_paquete(ruta):
+    with io.open(os.path.expanduser(ruta), "r", encoding="utf-8") as fh:
+        datos = json.load(fh)
+    if not isinstance(datos, dict):
+        raise ValueError("el JSON no es un objeto con las claves del paquete")
+    for k in SECCIONES:
+        datos.setdefault(k, [])
+        if not isinstance(datos[k], list):
+            raise ValueError("la clave \"%s\" debería ser una lista" % k)
+    return datos
 
 
-def _bloque(lineas):
-    """Interpreta un bloque indentado: lista de escalares o lista de mapas."""
-    elementos = []
-    actual = None
-    for linea in lineas:
-        if not linea.strip() or linea.strip().startswith("#"):
-            continue
-        contenido = linea.strip()
-        if contenido.startswith("- "):
-            cuerpo = contenido[2:].strip()
-            m = _RE_CLAVE.match(cuerpo)
-            if m:
-                actual = {m.group(1).strip(): _escalar(m.group(2))}
-                elementos.append(actual)
-            else:
-                elementos.append(_escalar(cuerpo))
-                actual = None
-        elif isinstance(actual, dict):
-            m = _RE_CLAVE.match(contenido)
-            if m:
-                actual[m.group(1).strip()] = _escalar(m.group(2))
-    return elementos
-
-
-def _mini_yaml(texto):
-    """Lector reducido de YAML para el frontmatter documentado en el README."""
-    raiz = {}
-    lineas = texto.split("\n")
-    i, n = 0, len(lineas)
-    while i < n:
-        linea = lineas[i]
-        if not linea.strip() or linea.lstrip().startswith("#") or linea[:1] in (" ", "\t"):
-            i += 1
-            continue
-        m = _RE_CLAVE.match(linea)
-        if not m:
-            i += 1
-            continue
-        clave, resto = m.group(1).strip(), m.group(2).strip()
-        if resto:
-            raiz[clave] = _escalar(resto)
-            i += 1
-            continue
-        i += 1
-        bloque = []
-        while i < n and (not lineas[i].strip() or lineas[i][:1] in (" ", "\t")):
-            bloque.append(lineas[i])
-            i += 1
-        elementos = _bloque(bloque)
-        # «clave:» sin nada debajo es un valor vacío, no una lista vacía.
-        raiz[clave] = elementos if elementos else ""
-    return raiz
-
-
-def separar_frontmatter(texto):
-    """Devuelve (dict_frontmatter, cuerpo_markdown)."""
-    if not texto.startswith("---"):
-        return {}, texto
-    partes = texto.split("\n")
-    if partes[0].strip() != "---":
-        return {}, texto
-    for idx in range(1, len(partes)):
-        if partes[idx].strip() in ("---", "..."):
-            crudo = "\n".join(partes[1:idx])
-            cuerpo = "\n".join(partes[idx + 1:])
-            if _pyyaml is not None:
-                try:
-                    datos = _pyyaml.safe_load(crudo) or {}
-                    if isinstance(datos, dict):
-                        return datos, cuerpo
-                except Exception:
-                    pass
-            return _mini_yaml(crudo), cuerpo
-    return {}, texto
-
-
-def como_lista(valor):
-    if valor is None or valor == "":
-        return []
-    if isinstance(valor, list):
-        return [str(v).strip() for v in valor if str(v).strip()]
-    return [p.strip() for p in str(valor).split(",") if p.strip()]
-
-
-def como_texto(valor):
-    if valor is None:
-        return ""
-    if isinstance(valor, bool):
-        return "true" if valor else "false"
-    return str(valor).strip()
+def guardar_paquete(datos, ruta):
+    destino = os.path.expanduser(ruta)
+    if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
+        destino = os.path.join(destino, "paquete.json")
+    carpeta = os.path.dirname(os.path.abspath(destino))
+    if not os.path.isdir(carpeta):
+        raise IOError("no existe la carpeta %s" % carpeta)
+    with io.open(destino, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(datos, ensure_ascii=False, indent=1))
+    return destino
 
 
 # --------------------------------------------------------------------------
-# Carga del vault
+# Reglas regex
 # --------------------------------------------------------------------------
 
-# Sinónimos aceptados para cada campo, para que puedas escribir en la forma que
-# te resulte natural sin romper la herramienta.
-ALIAS = {
-    "palabra": ["palabra", "lexema", "headword", "termino", "término"],
-    "ipa": ["ipa", "fonemico", "fonémico", "pronunciacion", "pronunciación"],
-    "romanizacion": ["romanizacion", "romanización", "roman", "transcripcion", "transcripción"],
-    "pos": ["pos", "categoria", "categoría", "clase", "tipo_gramatical"],
-    "glosa": ["glosa", "definicion", "definición", "significado", "gloss"],
-    "etimologia": ["etimologia", "etimología", "origen"],
-    "estado": ["estado", "status"],
-    "grafema": ["grafema", "caracter", "carácter", "char", "letra"],
-    "reemplazo": ["reemplazo", "replacement", "sustitucion", "sustitución"],
-    "etiqueta": ["etiqueta", "nombre", "label", "titulo", "título"],
-    "buscar": ["buscar", "regex", "patron", "patrón", "find"],
-    "reemplazar": ["reemplazar", "replace", "salida"],
-    "flags": ["flags", "banderas", "modificadores"],
-    "pruebas": ["pruebas", "tests", "casos"],
-    "dimensiones": ["dimensiones", "dims", "rasgos", "features"],
-    "orden": ["orden", "seccion", "sección", "numero", "número", "order"],
-    "notas": ["notas", "nota", "comentario", "comentarios"],
-}
+def _a_retro_python(reemplazo):
+    """PolyGlot es Java y usa $1; Python usa \\1. Se traduce para que una regla
+    escrita como la espera PolyGlot dé aquí el mismo resultado."""
+    salida, i = "", 0
+    while i < len(reemplazo):
+        c = reemplazo[i]
+        if c == "$" and i + 1 < len(reemplazo) and reemplazo[i + 1].isdigit():
+            salida += "\\" + reemplazo[i + 1]
+            i += 2
+        elif c == "\\" and i + 1 < len(reemplazo):
+            salida += reemplazo[i:i + 2]
+            i += 2
+        else:
+            salida += c
+            i += 1
+    return salida
 
 
-def campo(datos, canonico, defecto=""):
-    for nombre in ALIAS.get(canonico, [canonico]):
-        for clave in datos:
-            if str(clave).strip().lower() == nombre:
-                return datos[clave]
-    return defecto
+def aplicar_regla(regla, entrada):
+    """Devuelve (ok, resultado_o_error)."""
+    flags = (regla.get("flags") or "").lower()
+    banderas = (re.IGNORECASE if "i" in flags else 0) | (re.MULTILINE if "m" in flags else 0)
+    try:
+        patron = re.compile(regla.get("find") or "", banderas)
+    except re.error as exc:
+        return False, "regex inválida: %s" % exc
+    try:
+        return True, patron.sub(_a_retro_python(regla.get("replace") or ""),
+                                entrada, count=0 if "g" in flags else 1)
+    except re.error as exc:
+        return False, "reemplazo inválido: %s" % exc
 
 
-def _tipo_nota(datos, ruta_rel):
-    """Determina qué representa una nota: por 'tipo:' o por su carpeta."""
-    declarado = como_texto(campo(datos, "tipo") or datos.get("type", "")).lower()
-    mapa = {
-        "lexema": "lexema", "palabra": "lexema", "entrada": "lexema",
-        "fonologia": "fonologia", "fonología": "fonologia", "fonema": "fonologia",
-        "regla": "regla", "conjugacion": "regla", "conjugación": "regla",
-        "gramatica": "gramatica", "gramática": "gramatica", "grammar": "gramatica",
-        "pos": "pos", "categoria": "pos", "categoría": "pos",
-    }
-    if declarado in mapa:
-        return mapa[declarado]
-    carpeta = ruta_rel.replace("\\", "/").split("/")[0].lower()
-    por_carpeta = {
-        "lexicon": "lexema", "lexico": "lexema", "léxico": "lexema",
-        "conjugaciones": "regla", "reglas": "regla",
-        "gramatica": "gramatica", "gramática": "gramatica",
-        "fonologia": "fonologia", "fonología": "fonologia",
-        "categorias": "pos", "categorías": "pos",
-    }
-    return por_carpeta.get(carpeta)
+def valor_clase(lex, nombre):
+    return (lex.get("classes") or {}).get(nombre, "")
 
 
-def _tabla_markdown(cuerpo):
-    """Extrae la primera tabla markdown del cuerpo como lista de dicts."""
-    filas = []
-    encabezado = None
-    for linea in cuerpo.split("\n"):
-        t = linea.strip()
-        if not t.startswith("|"):
-            if encabezado:
+def lexemas_de(paquete, regla):
+    """Palabras a las que alcanza una regla: por categoría y por clase léxica."""
+    lista = paquete["lexicon"]
+    pos = (regla.get("pos") or "").strip().lower()
+    if pos:
+        lista = [w for w in lista if (w.get("pos") or "").strip().lower() == pos]
+    clase, valor = regla.get("claseFiltro"), regla.get("valorFiltro")
+    if clase and valor:
+        lista = [w for w in lista if valor_clase(w, clase) == valor]
+    return lista
+
+
+def ensayar(paquete, limite=4):
+    """Aplica cada regla a su léxico real y la clasifica."""
+    salida = []
+    for r in paquete["rules"]:
+        candidatos = lexemas_de(paquete, r)
+        error, muestras, afectadas = None, [], 0
+        for w in candidatos:
+            ok, res = aplicar_regla(r, w.get("headword") or "")
+            if not ok:
+                error = res
                 break
-            continue
-        celdas = [c.strip() for c in t.strip("|").split("|")]
-        if encabezado is None:
-            encabezado = [c.lower() for c in celdas]
-            continue
-        if all(set(c) <= set("-: ") for c in celdas):
-            continue
-        if len(celdas) < len(encabezado):
-            celdas += [""] * (len(encabezado) - len(celdas))
-        filas.append(dict(zip(encabezado, celdas)))
-    return filas
-
-
-def _columna(fila, *nombres):
-    for n in nombres:
-        for clave in fila:
-            if clave.strip().lower() == n:
-                return fila[clave].strip()
-    return ""
-
-
-def cargar_vault(ruta_vault):
-    """Recorre el vault y devuelve el modelo de datos + errores de lectura."""
-    modelo = {"lexemas": [], "fonologia": [], "reglas": [], "gramatica": [], "pos": []}
-    hallazgos = []
-
-    if not os.path.isdir(ruta_vault):
-        hallazgos.append(Hallazgo(ERROR, "vault", "No existe la carpeta %s" % ruta_vault))
-        return modelo, hallazgos
-
-    for base, dirs, archivos in os.walk(ruta_vault):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
-        for nombre in sorted(archivos):
-            if not nombre.lower().endswith(".md"):
-                continue
-            ruta = os.path.join(base, nombre)
-            rel = os.path.relpath(ruta, ruta_vault)
-            try:
-                with io.open(ruta, "r", encoding="utf-8") as fh:
-                    texto = fh.read()
-            except (IOError, OSError, UnicodeDecodeError) as exc:
-                hallazgos.append(Hallazgo(ERROR, "vault", "No se pudo leer: %s" % exc, rel))
-                continue
-
-            datos, cuerpo = separar_frontmatter(texto)
-            tipo = _tipo_nota(datos, rel)
-            if tipo is None:
-                continue
-
-            if tipo == "lexema":
-                palabra = como_texto(campo(datos, "palabra")) or os.path.splitext(nombre)[0]
-                modelo["lexemas"].append({
-                    "palabra": palabra,
-                    "ipa": como_texto(campo(datos, "ipa")),
-                    "romanizacion": como_texto(campo(datos, "romanizacion")),
-                    "pos": como_texto(campo(datos, "pos")),
-                    "glosa": como_texto(campo(datos, "glosa")),
-                    "etimologia": como_texto(campo(datos, "etimologia")),
-                    "estado": como_texto(campo(datos, "estado")) or "borrador",
-                    "notas": cuerpo.strip(),
-                    "origen": rel,
-                })
-
-            elif tipo == "regla":
-                pruebas = []
-                for p in campo(datos, "pruebas", []) or []:
-                    if isinstance(p, dict):
-                        entrada = como_texto(p.get("entrada", p.get("input", "")))
-                        esperado = como_texto(p.get("esperado", p.get("expected", "")))
-                        if entrada:
-                            pruebas.append({"entrada": entrada, "esperado": esperado})
-                modelo["reglas"].append({
-                    "etiqueta": como_texto(campo(datos, "etiqueta")) or os.path.splitext(nombre)[0],
-                    "pos": como_texto(campo(datos, "pos")),
-                    "buscar": como_texto(campo(datos, "buscar")),
-                    "reemplazar": como_texto(campo(datos, "reemplazar")),
-                    "flags": como_texto(campo(datos, "flags")),
-                    "pruebas": pruebas,
-                    "origen": rel,
-                })
-
-            elif tipo == "pos":
-                modelo["pos"].append({
-                    "nombre": como_texto(campo(datos, "etiqueta")) or os.path.splitext(nombre)[0],
-                    "dimensiones": como_lista(campo(datos, "dimensiones")),
-                    "notas": como_texto(campo(datos, "notas")) or cuerpo.strip(),
-                    "origen": rel,
-                })
-
-            elif tipo == "gramatica":
-                orden_bruto = como_texto(campo(datos, "orden"))
-                try:
-                    orden = int(orden_bruto)
-                except (TypeError, ValueError):
-                    m = re.match(r"^(\d+)", nombre)
-                    orden = int(m.group(1)) if m else 999
-                modelo["gramatica"].append({
-                    "titulo": como_texto(campo(datos, "etiqueta")) or os.path.splitext(nombre)[0],
-                    "orden": orden,
-                    "contenido": cuerpo.strip(),
-                    "origen": rel,
-                })
-
-            elif tipo == "fonologia":
-                filas = _tabla_markdown(cuerpo)
-                if filas:
-                    for fila in filas:
-                        grafema = _columna(fila, "grafema", "carácter", "caracter", "letra", "char")
-                        if not grafema:
-                            continue
-                        modelo["fonologia"].append({
-                            "grafema": grafema,
-                            "ipa": _columna(fila, "ipa", "fonema", "fonémico", "fonemico"),
-                            "romanizacion": _columna(fila, "romanización", "romanizacion", "roman"),
-                            "reemplazo": _columna(fila, "reemplazo", "replacement", "sustitución"),
-                            "notas": _columna(fila, "notas", "nota", "comentario"),
-                            "origen": rel,
-                        })
-                else:
-                    grafema = como_texto(campo(datos, "grafema"))
-                    if grafema:
-                        modelo["fonologia"].append({
-                            "grafema": grafema,
-                            "ipa": como_texto(campo(datos, "ipa")),
-                            "romanizacion": como_texto(campo(datos, "romanizacion")),
-                            "reemplazo": como_texto(campo(datos, "reemplazo")),
-                            "notas": como_texto(campo(datos, "notas")),
-                            "origen": rel,
-                        })
-
-    modelo["gramatica"].sort(key=lambda s: (s["orden"], s["titulo"]))
-    return modelo, hallazgos
+            if res != w.get("headword"):
+                afectadas += 1
+                if len(muestras) < limite:
+                    muestras.append((w["headword"], res))
+        estado = ("error" if error else
+                  "sin-lexico" if not candidatos else
+                  "inerte" if afectadas == 0 else "activa")
+        salida.append({"regla": r, "estado": estado, "error": error,
+                       "muestras": muestras, "afectadas": afectadas,
+                       "candidatos": len(candidatos)})
+    return salida
 
 
 # --------------------------------------------------------------------------
 # Validación
 # --------------------------------------------------------------------------
 
-def tokenizar(palabra, grafemas, ignorar=" -"):
-    """Segmenta una palabra con los grafemas declarados (coincidencia más larga)."""
+# El apóstrofe es marca ortográfica de límite morfológico (§3.5), no un
+# fonema: se ignora al comprobar la cobertura del inventario.
+IGNORAR_POR_DEFECTO = " -'"
+
+IPA_VOCALES = "aeiouɑɐɒæəɘɛɜɞɨɪøɵœɶʊʉʌɔɤɯyʏ"
+IPA_MODIF = re.compile("[ːˑˈˌ̀-ͯʰ-˿]")
+
+
+def parece_vocal(fila):
+    texto = IPA_MODIF.sub("", unicodedata.normalize("NFD", fila.get("ipa") or fila.get("char") or ""))
+    letras = list(texto)
+    nucleo = [c for c in letras if c in IPA_VOCALES]
+    return bool(nucleo) and len(nucleo) == len(letras)
+
+
+def tokenizar(palabra, grafemas, ignorar=IGNORAR_POR_DEFECTO):
     orden = sorted([g for g in grafemas if g], key=len, reverse=True)
-    tokens, desconocidos = [], []
-    i = 0
+    tokens, desconocidos, i = [], [], 0
     while i < len(palabra):
         if palabra[i] in ignorar:
             i += 1
@@ -433,1452 +206,851 @@ def tokenizar(palabra, grafemas, ignorar=" -"):
     return tokens, desconocidos
 
 
-def _a_retro_python(reemplazo):
-    """PolyGlot es Java y usa $1 para las retro-referencias; Python usa \\1.
-
-    Se traduce aquí para que una regla escrita como la espera PolyGlot dé el
-    mismo resultado en esta herramienta que en la aplicación.
-    """
-    salida, i = "", 0
-    while i < len(reemplazo):
-        c = reemplazo[i]
-        if c == "$" and i + 1 < len(reemplazo) and reemplazo[i + 1].isdigit():
-            salida += "\\" + reemplazo[i + 1]
-            i += 2
-        elif c == "\\" and i + 1 < len(reemplazo):
-            salida += reemplazo[i:i + 2]      # ya escapado: se deja intacto
-            i += 2
-        else:
-            salida += c
-            i += 1
-    return salida
-
-
-def aplicar_regla(regla, entrada):
-    """Aplica la regla regex. Devuelve (ok, resultado_o_mensaje_de_error)."""
-    banderas = 0
-    texto_flags = (regla.get("flags") or "").lower()
-    if "i" in texto_flags:
-        banderas |= re.IGNORECASE
-    if "m" in texto_flags:
-        banderas |= re.MULTILINE
-    try:
-        patron = re.compile(regla["buscar"], banderas)
-    except re.error as exc:
-        return False, "regex inválida: %s" % exc
-    cuenta = 0 if "g" in texto_flags else 1
-    try:
-        return True, patron.sub(_a_retro_python(regla.get("reemplazar", "")), entrada, count=cuenta)
-    except re.error as exc:
-        return False, "reemplazo inválido: %s" % exc
-
-
-def revisar(modelo, ignorar=" -"):
-    """Corre todas las validaciones y devuelve la lista de hallazgos."""
+def revisar(paquete, ignorar=IGNORAR_POR_DEFECTO):
     h = []
+    fon, pos, lex, reglas = (paquete["phonology"], paquete["pos"],
+                             paquete["lexicon"], paquete["rules"])
 
     # ---- Fonología -------------------------------------------------------
-    vistos_grafema, vistos_roman = {}, {}
-    for f in modelo["fonologia"]:
-        g = f["grafema"]
-        if g in vistos_grafema:
-            h.append(Hallazgo(ERROR, "fonología",
-                              "Grafema duplicado «%s» (ya definido en %s)" % (g, vistos_grafema[g]),
-                              f["origen"]))
-        else:
-            vistos_grafema[g] = f["origen"]
-
-        if not f["ipa"]:
-            h.append(Hallazgo(AVISO, "fonología",
-                              "«%s» no tiene fonema IPA asignado" % g, f["origen"]))
-
-        r = f["romanizacion"]
+    vistos, romans = {}, {}
+    for f in fon:
+        g = f.get("char") or ""
+        if g in vistos:
+            h.append(Hallazgo(ERROR, "fonología", "Grafema duplicado «%s»" % g))
+        vistos[g] = True
+        if not f.get("ipa"):
+            h.append(Hallazgo(AVISO, "fonología", "«%s» sin fonema AFI" % g))
+        r = f.get("roman")
         if r:
-            if r in vistos_roman and vistos_roman[r] != g:
+            if r in romans and romans[r] != g:
                 h.append(Hallazgo(ERROR, "fonología",
-                                  "Romanización ambigua «%s»: la usan «%s» y «%s»"
-                                  % (r, vistos_roman[r], g), f["origen"]))
-            else:
-                vistos_roman[r] = g
+                                  "Romanización ambigua «%s»: la usan «%s» y «%s»" % (r, romans[r], g)))
+            romans[r] = g
 
     # ---- Teclas de sustitución -------------------------------------------
-    # PolyGlot solo admite UN carácter como entrada de sustitución, así que
-    # cada grafema no tecleable necesita una tecla propia y sin choques.
-    inventario = set(f["grafema"] for f in modelo["fonologia"])
-    vistas_tecla = {}
-    for f in modelo["fonologia"]:
-        g, tecla = f["grafema"], f["reemplazo"]
-        if not tecla:
+    inventario = set(vistos)
+    teclas = {}
+    for f in fon:
+        g, t = f.get("char") or "", f.get("replacement") or ""
+        if not t:
             if any(ord(c) > 126 for c in g):
-                h.append(Hallazgo(AVISO, "teclas",
-                                  "«%s» no se teclea directamente y no tiene tecla asignada" % g,
-                                  f["origen"]))
+                h.append(Hallazgo(AVISO, "teclas", "«%s» no se teclea y no tiene tecla asignada" % g))
             continue
-
-        if len(tecla) > 1:
+        if len(t) > 1:
             h.append(Hallazgo(ERROR, "teclas",
-                              "La tecla de «%s» es «%s»: PolyGlot solo admite un carácter de entrada"
-                              % (g, tecla), f["origen"]))
-
-        if tecla in vistas_tecla:
+                              "La tecla de «%s» es «%s»: PolyGlot admite un solo carácter" % (g, t)))
+        if t in teclas:
             h.append(Hallazgo(ERROR, "teclas",
-                              "Tecla repetida «%s»: la usan «%s» y «%s»"
-                              % (tecla, vistas_tecla[tecla], g), f["origen"]))
+                              "Tecla repetida «%s»: la usan «%s» y «%s»" % (t, teclas[t], g)))
         else:
-            vistas_tecla[tecla] = g
-
-        if tecla in inventario:
+            teclas[t] = g
+        if t in inventario:
             h.append(Hallazgo(ERROR, "teclas",
-                              "La tecla «%s» es también un grafema de la lengua: se sustituiría sola" % tecla,
-                              f["origen"]))
-
-    for tecla, duenio in sorted(vistas_tecla.items()):
-        afectadas = [l["palabra"] for l in modelo["lexemas"] if tecla in l["palabra"]]
+                              "La tecla «%s» es también un grafema: se sustituiría sola" % t))
+    for t, duenio in sorted(teclas.items()):
+        afectadas = [w["headword"] for w in lex if t in (w.get("headword") or "")]
         if afectadas:
-            muestra = ", ".join(afectadas[:3]) + ("…" if len(afectadas) > 3 else "")
             h.append(Hallazgo(ERROR, "teclas",
-                              "La tecla «%s» (de «%s») aparece dentro de palabras del léxico (%s): "
-                              "al teclearlas se sustituiría" % (tecla, duenio, muestra)))
+                              "La tecla «%s» (de «%s») aparece dentro de %s: al teclearlas se sustituiría"
+                              % (t, duenio, ", ".join(afectadas[:3]))))
 
-    # ---- Cobertura: caracteres usados vs. inventario ---------------------
-    grafemas = [f["grafema"] for f in modelo["fonologia"]]
+    # ---- Cobertura de caracteres -----------------------------------------
+    grafemas = list(vistos)
     if grafemas:
-        faltantes = {}
-        usados = set()
-        for lex in modelo["lexemas"]:
-            tokens, desconocidos = tokenizar(lex["palabra"], grafemas, ignorar)
-            usados.update(tokens)
-            for d in desconocidos:
-                faltantes.setdefault(d, []).append(lex["palabra"])
-        for caracter, palabras in sorted(faltantes.items()):
-            muestra = ", ".join(palabras[:4]) + ("…" if len(palabras) > 4 else "")
-            nombre_uni = ""
+        faltan, usados = {}, set()
+        for w in lex:
+            tk, desc = tokenizar(w.get("headword") or "", grafemas, ignorar)
+            usados.update(tk)
+            for d in desc:
+                faltan.setdefault(d, []).append(w["headword"])
+        for ch, palabras in sorted(faltan.items()):
             try:
-                nombre_uni = " [%s]" % unicodedata.name(caracter)
+                nombre = " [%s]" % unicodedata.name(ch)
             except ValueError:
-                pass
+                nombre = ""
             h.append(Hallazgo(ERROR, "cobertura",
                               "El carácter «%s»%s aparece en el léxico pero no está en Phonology (%s)"
-                              % (caracter, nombre_uni, muestra)))
+                              % (ch, nombre, ", ".join(palabras[:4]))))
         for g in grafemas:
-            if g not in usados and modelo["lexemas"]:
+            if g not in usados and lex:
                 h.append(Hallazgo(AVISO, "cobertura",
-                                  "El grafema «%s» está declarado pero ningún lexema lo usa" % g))
-    elif modelo["lexemas"]:
-        h.append(Hallazgo(AVISO, "cobertura",
-                          "No hay inventario fonológico: no se puede verificar la cobertura de caracteres"))
+                                  "El grafema «%s» está declarado y ningún lexema lo usa" % g))
 
-    # ---- Parts of Speech -------------------------------------------------
-    declaradas = set(p["nombre"].lower() for p in modelo["pos"])
-    usadas = {}
-    for lex in modelo["lexemas"]:
-        if lex["pos"]:
-            usadas.setdefault(lex["pos"].lower(), lex["pos"])
-        else:
-            h.append(Hallazgo(AVISO, "pos",
-                              "«%s» no tiene Part of Speech asignado" % lex["palabra"], lex["origen"]))
-    if declaradas:
-        for clave, original in sorted(usadas.items()):
-            if clave not in declaradas:
-                h.append(Hallazgo(ERROR, "pos",
-                                  "El léxico usa la categoría «%s» pero no está declarada" % original))
-        for p in modelo["pos"]:
-            if p["nombre"].lower() not in usadas:
-                h.append(Hallazgo(AVISO, "pos",
-                                  "La categoría «%s» no tiene ningún lexema" % p["nombre"], p["origen"]))
-            if not p["dimensiones"]:
-                h.append(Hallazgo(AVISO, "pos",
-                                  "«%s» no declara dimensiones de conjugación" % p["nombre"], p["origen"]))
+    # ---- Categorías -------------------------------------------------------
+    declaradas = {(p.get("name") or "").strip(): p for p in pos}
+    for w in lex:
+        p = (w.get("pos") or "").strip()
+        if not p:
+            h.append(Hallazgo(AVISO, "pos", "«%s» sin categoría" % w.get("headword")))
+        elif p not in declaradas:
+            h.append(Hallazgo(ERROR, "pos", "«%s» usa la categoría «%s», no declarada"
+                              % (w.get("headword"), p)))
+    for nombre, p in declaradas.items():
+        if not any((w.get("pos") or "").strip() == nombre for w in lex):
+            h.append(Hallazgo(AVISO, "pos", "La categoría «%s» no tiene lexemas" % nombre))
+        if not p.get("notes"):
+            h.append(Hallazgo(AVISO, "pos", "La categoría «%s» no tiene descripción" % nombre))
 
-    # ---- Reglas de conjugación ------------------------------------------
-    for r in modelo["reglas"]:
-        if not r["buscar"]:
-            h.append(Hallazgo(ERROR, "conjugación",
-                              "«%s» no tiene patrón de búsqueda" % r["etiqueta"], r["origen"]))
+    # ---- Clases léxicas ---------------------------------------------------
+    for cl in paquete["classes"]:
+        nombre, valores = cl.get("name") or "", cl.get("values") or []
+        if len(valores) < 2:
+            h.append(Hallazgo(ERROR, "clases", "La clase «%s» necesita al menos dos valores" % nombre))
+        alcance = [w for w in lex if not cl.get("appliesTo")
+                   or (w.get("pos") or "") in cl["appliesTo"]]
+        sin = [w["headword"] for w in alcance if valor_clase(w, nombre) not in valores]
+        if sin:
+            h.append(Hallazgo(AVISO, "clases",
+                              "%d palabra(s) en alcance de «%s» sin valor asignado (%s)"
+                              % (len(sin), nombre, ", ".join(sin[:4]))))
+        for n in cl.get("appliesTo") or []:
+            if n not in declaradas:
+                h.append(Hallazgo(ERROR, "clases",
+                                  "«%s» aplica a «%s», que no es una categoría declarada" % (nombre, n)))
+
+    # ---- Reglas -----------------------------------------------------------
+    nombres_clase = {c.get("name"): (c.get("values") or []) for c in paquete["classes"]}
+    for r in reglas:
+        etiqueta = r.get("label") or "(sin etiqueta)"
+        if not r.get("find"):
+            h.append(Hallazgo(ERROR, "conjugación", "«%s» sin patrón de búsqueda" % etiqueta))
             continue
-
-        ok, _ = aplicar_regla(r, "prueba")
+        ok, msg = aplicar_regla(r, "prueba")
         if not ok:
-            h.append(Hallazgo(ERROR, "conjugación",
-                              "«%s»: %s" % (r["etiqueta"], _), r["origen"]))
+            h.append(Hallazgo(ERROR, "conjugación", "«%s»: %s" % (etiqueta, msg)))
             continue
-
-        if not r["buscar"].startswith("^") and not r["buscar"].endswith("$"):
+        find = r["find"]
+        if not find.startswith("^") and not find.endswith("$"):
             h.append(Hallazgo(AVISO, "conjugación",
-                              "«%s» no está anclada (sin ^ ni $): puede alterar el interior de la palabra"
-                              % r["etiqueta"], r["origen"]))
-
-        if r["pos"] and declaradas and r["pos"].lower() not in declaradas:
+                              "«%s» no está anclada (sin ^ ni $): puede alterar el interior" % etiqueta))
+        if "\\1" in (r.get("replace") or ""):
             h.append(Hallazgo(ERROR, "conjugación",
-                              "«%s» apunta a la categoría «%s», que no está declarada"
-                              % (r["etiqueta"], r["pos"]), r["origen"]))
-
-        if not r["pruebas"]:
-            h.append(Hallazgo(AVISO, "conjugación",
-                              "«%s» no tiene casos de prueba: no se puede verificar" % r["etiqueta"],
-                              r["origen"]))
-        for prueba in r["pruebas"]:
-            ok, salida = aplicar_regla(r, prueba["entrada"])
+                              "«%s» usa \\1 en el reemplazo: PolyGlot es Java y espera $1" % etiqueta))
+        p = (r.get("pos") or "").strip()
+        if p and p not in declaradas:
+            h.append(Hallazgo(ERROR, "conjugación",
+                              "«%s» apunta a la categoría «%s», no declarada" % (etiqueta, p)))
+        clase, valor = r.get("claseFiltro"), r.get("valorFiltro")
+        if clase and clase not in nombres_clase:
+            h.append(Hallazgo(ERROR, "conjugación",
+                              "«%s» filtra por la clase «%s», que no existe" % (etiqueta, clase)))
+        elif clase and valor and valor not in nombres_clase[clase]:
+            h.append(Hallazgo(ERROR, "conjugación",
+                              "«%s» filtra por «%s = %s», valor inexistente" % (etiqueta, clase, valor)))
+        if not r.get("tests"):
+            h.append(Hallazgo(AVISO, "conjugación", "«%s» sin casos de prueba" % etiqueta))
+        for t in r.get("tests") or []:
+            ok, salida = aplicar_regla(r, t.get("input") or "")
             if not ok:
-                h.append(Hallazgo(ERROR, "conjugación",
-                                  "«%s»: %s" % (r["etiqueta"], salida), r["origen"]))
-            elif salida != prueba["esperado"]:
+                h.append(Hallazgo(ERROR, "conjugación", "«%s»: %s" % (etiqueta, salida)))
+            elif salida != t.get("expected"):
                 h.append(Hallazgo(ERROR, "conjugación",
                                   "«%s»: %s → %s, se esperaba %s"
-                                  % (r["etiqueta"], prueba["entrada"], salida, prueba["esperado"]),
-                                  r["origen"]))
+                                  % (etiqueta, t.get("input"), salida, t.get("expected"))))
 
-        # Regla muerta: no cambia ningún lexema de su categoría.
-        candidatos = [l for l in modelo["lexemas"]
-                      if not r["pos"] or l["pos"].lower() == r["pos"].lower()]
-        if candidatos:
-            toco_algo = False
-            for lex in candidatos:
-                ok, salida = aplicar_regla(r, lex["palabra"])
-                if ok and salida != lex["palabra"]:
-                    toco_algo = True
-                    break
-            if not toco_algo:
-                h.append(Hallazgo(AVISO, "conjugación",
-                                  "«%s» no modifica ningún lexema existente de su categoría"
-                                  % r["etiqueta"], r["origen"]))
-
-    # ---- Gramática -------------------------------------------------------
-    ordenes = {}
-    for s in modelo["gramatica"]:
-        if not s["contenido"]:
-            h.append(Hallazgo(AVISO, "gramática",
-                              "La sección «%s» está vacía" % s["titulo"], s["origen"]))
-        if s["orden"] in ordenes and s["orden"] != 999:
-            h.append(Hallazgo(AVISO, "gramática",
-                              "Orden %s repetido: «%s» y «%s»"
-                              % (s["orden"], ordenes[s["orden"]], s["titulo"]), s["origen"]))
-        else:
-            ordenes[s["orden"]] = s["titulo"]
+    # ---- Gramática --------------------------------------------------------
+    titulos = {}
+    for s in paquete["grammar"]:
+        t = (s.get("title") or "").strip()
+        if not s.get("content"):
+            h.append(Hallazgo(AVISO, "gramática", "La sección «%s» está vacía" % t))
+        if t in titulos:
+            h.append(Hallazgo(ERROR, "gramática", "Título de sección repetido: «%s»" % t))
+        titulos[t] = True
 
     return h
 
 
 # --------------------------------------------------------------------------
-# Exportación
+# Lectura del .pgd
 # --------------------------------------------------------------------------
 
-def escribir_csv(ruta, encabezados, filas):
-    with io.open(ruta, "w", encoding="utf-8", newline="") as fh:
-        escritor = csv.writer(fh)
-        escritor.writerow(encabezados)
-        for fila in filas:
-            escritor.writerow(fila)
-
-
-def exportar(modelo, hallazgos, salida):
-    """Genera los archivos para PolyGlot. Devuelve la lista de rutas escritas."""
-    if not os.path.isdir(salida):
-        os.makedirs(salida)
-    escritos = []
-
-    ruta = os.path.join(salida, "lexicon.csv")
-    escribir_csv(ruta,
-                 ["Glosa", "Palabra", "Categoria", "Pronunciacion", "Romanizacion", "Etimologia", "Estado"],
-                 [[l["glosa"], l["palabra"], l["pos"], l["ipa"], l["romanizacion"],
-                   l["etimologia"], l["estado"]] for l in modelo["lexemas"]])
-    escritos.append(ruta)
-
-    ruta = os.path.join(salida, "fonologia.csv")
-    escribir_csv(ruta,
-                 ["Grafema", "IPA", "Romanizacion", "Reemplazo", "Notas"],
-                 [[f["grafema"], f["ipa"], f["romanizacion"], f["reemplazo"], f["notas"]]
-                  for f in modelo["fonologia"]])
-    escritos.append(ruta)
-
-    ruta = os.path.join(salida, "conjugaciones.csv")
-    escribir_csv(ruta,
-                 ["Etiqueta", "Categoria", "Buscar", "Reemplazar", "Flags"],
-                 [[r["etiqueta"], r["pos"], r["buscar"], r["reemplazar"], r["flags"]]
-                  for r in modelo["reglas"]])
-    escritos.append(ruta)
-
-    ruta = os.path.join(salida, "gramatica.md")
-    piezas = ["# Gramática de tabure'shi", ""]
-    for s in modelo["gramatica"]:
-        piezas.append("## %s" % s["titulo"])
-        piezas.append("")
-        piezas.append(s["contenido"] or "_Sin contenido._")
-        piezas.append("")
-    with io.open(ruta, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(piezas))
-    escritos.append(ruta)
-
-    ruta = os.path.join(salida, "informe.md")
-    errores = [x for x in hallazgos if x.nivel == ERROR]
-    avisos = [x for x in hallazgos if x.nivel == AVISO]
-    piezas = [
-        "# Informe de revisión — tabure'shi",
-        "",
-        "_Generado el %s_" % time.strftime("%Y-%m-%d %H:%M"),
-        "",
-        "| Área | Cantidad |",
-        "|---|---|",
-        "| Lexemas | %d |" % len(modelo["lexemas"]),
-        "| Grafemas | %d |" % len(modelo["fonologia"]),
-        "| Categorías | %d |" % len(modelo["pos"]),
-        "| Reglas de conjugación | %d |" % len(modelo["reglas"]),
-        "| Secciones de gramática | %d |" % len(modelo["gramatica"]),
-        "| Errores | %d |" % len(errores),
-        "| Avisos | %d |" % len(avisos),
-        "",
-    ]
-    if errores:
-        piezas += ["## Errores", ""] + [x.plano() for x in errores] + [""]
-    if avisos:
-        piezas += ["## Avisos", ""] + [x.plano() for x in avisos] + [""]
-    if not hallazgos:
-        piezas += ["Sin hallazgos: todo consistente.", ""]
-    with io.open(ruta, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(piezas))
-    escritos.append(ruta)
-
-    return escritos
-
-
-# --------------------------------------------------------------------------
-# Extracción del .pgd de PolyGlot (solo lectura)
-# --------------------------------------------------------------------------
-#
-# Esquema verificado contra PolyGlot 3.6.1. Los nombres de etiqueta salen de
-# `inspeccionar`; si tu versión difiere, vuelve a correrlo y compara.
-
-_RE_ETIQUETAS = re.compile(r"<[^>]+>")
+_RE_TAGS = re.compile(r"<[^>]+>")
 _ENTIDADES = [("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"),
               ("&gt;", ">"), ("&quot;", '"'), ("&#39;", "'")]
 
 
 def _texto_plano(bruto):
-    """Las notas de PolyGlot vienen envueltas en HTML; deja solo el texto."""
     if not bruto:
         return ""
-    limpio = re.sub(r"(?is)<(script|style|head)[^>]*>.*?</\1>", " ", bruto)
-    limpio = re.sub(r"(?i)<br\s*/?>", "\n", limpio)
-    limpio = re.sub(r"(?i)</p\s*>", "\n", limpio)
-    limpio = _RE_ETIQUETAS.sub("", limpio)
-    for entidad, valor in _ENTIDADES:
-        limpio = limpio.replace(entidad, valor)
-    limpio = re.sub(r"[ \t]+", " ", limpio)
-    limpio = re.sub(r"\n\s*\n\s*\n+", "\n\n", limpio)
-    return limpio.strip()
+    t = re.sub(r"(?is)<(script|style|head)[^>]*>.*?</\1>", " ", bruto)
+    t = re.sub(r"(?i)<br\s*/?>", "\n", t)
+    t = re.sub(r"(?i)</p\s*>", "\n", t)
+    t = _RE_TAGS.sub("", t)
+    for a, b in _ENTIDADES:
+        t = t.replace(a, b)
+    t = re.sub(r"[ \t]+", " ", t)
+    return re.sub(r"\n\s*\n\s*\n+", "\n\n", t).strip()
 
 
-def _sin_barras(texto):
-    """PolyGlot guarda los fonemas como /b/; aquí interesa la b."""
-    return (texto or "").replace("/", "").strip()
+def _sin_barras(t):
+    return (t or "").replace("/", "").strip()
 
 
 def _hijo(nodo, etiqueta, defecto=""):
-    hijo = nodo.find(etiqueta)
-    return (hijo.text or defecto) if hijo is not None and hijo.text is not None else defecto
+    x = nodo.find(etiqueta)
+    return x.text if x is not None and x.text is not None else defecto
 
 
-def _abrir_xml(ruta_pgd):
-    """Devuelve la raíz del PGDictionary.xml, sin modificar el archivo."""
-    import xml.etree.ElementTree as ET
-    if zipfile.is_zipfile(ruta_pgd):
-        with zipfile.ZipFile(ruta_pgd) as z:
-            candidatos = [n for n in z.namelist()
-                          if n.lower().endswith(".xml") and not n.startswith("reversion/")]
-            if not candidatos:
-                raise ValueError("El .pgd no contiene ningún XML principal")
-            crudo = z.read(candidatos[0])
-    else:
-        with open(ruta_pgd, "rb") as fh:
-            crudo = fh.read()
-    return ET.fromstring(crudo)
+def _abrir(ruta_pgd):
+    """Devuelve (raíz_xml, nombre_del_xml, entradas_del_zip)."""
+    ruta = os.path.expanduser(ruta_pgd)
+    if not os.path.isfile(ruta):
+        raise IOError("no existe el archivo %s" % ruta)
+    if zipfile.is_zipfile(ruta):
+        with zipfile.ZipFile(ruta) as z:
+            entradas = [(n, z.read(n)) for n in z.namelist()]
+        candidatos = [n for n, _ in entradas
+                      if n.lower().endswith(".xml") and not n.startswith("reversion/")]
+        if not candidatos:
+            raise ValueError("el .pgd no contiene un XML principal")
+        return ET.fromstring(dict(entradas)[candidatos[0]]), candidatos[0], entradas
+    with open(ruta, "rb") as fh:
+        crudo = fh.read()
+    return ET.fromstring(crudo), None, [(None, crudo)]
 
 
-def extraer_pgd(ruta_pgd):
-    """Convierte el contenido del .pgd al formato de paquete del cuaderno."""
-    raiz = _abrir_xml(ruta_pgd)
-    paquete = {}
+def declinaciones_de(raiz):
+    """Mapa id_de_categoría -> lista de ejes, cada eje con sus dimensiones.
+
+    Es lo que permite atar una regla a la casilla que genera: PolyGlot guarda
+    ese enlace en decGenRuleComb, y sin él la regla no se aplica a nada.
+    """
+    ejes = {}
+    for nodo in raiz.findall("./declensionCollection/declensionNode"):
+        pos_id = _hijo(nodo, "declensionRelatedId")
+        eje = {
+            "id": _hijo(nodo, "declensionId"),
+            "nombre": _hijo(nodo, "declensionText"),
+            "dimensiones": [{"id": _hijo(d, "dimensionId"),
+                             "nombre": _hijo(d, "dimensionName")}
+                            for d in nodo.findall("./dimensionNode")],
+        }
+        ejes.setdefault(pos_id, []).append(eje)
+    for lista in ejes.values():
+        lista.sort(key=lambda e: (len(e["id"]), e["id"]))
+    return ejes
+
+
+def extraer(ruta_pgd):
+    raiz, _, _ = _abrir(ruta_pgd)
+    paquete = dict((k, []) for k in SECCIONES)
     avisos = []
 
-    # ---- Categorías gramaticales, y el mapa id -> nombre para el léxico ----
-    nombre_pos = {}
-    lista_pos = []
+    # Categorías y sus dimensiones
+    nombre_pos, por_id = {}, {}
     for nodo in raiz.findall("./partsOfSpeech/partOfSpeechNode"):
-        pos_id = _hijo(nodo, "partOfSpeechId")
-        nombre = _hijo(nodo, "partOfSpeechName")
+        pid, nombre = _hijo(nodo, "partOfSpeechId"), _hijo(nodo, "partOfSpeechName")
         if not nombre:
             continue
-        nombre_pos[pos_id] = nombre
-        lista_pos.append({"name": nombre, "dims": [],
-                          "notes": _texto_plano(_hijo(nodo, "partOfSpeechNotes")),
-                          "status": "draft"})
+        nombre_pos[pid] = nombre
+        entrada = {"name": nombre, "dims": [],
+                   "notes": _texto_plano(_hijo(nodo, "partOfSpeechNotes")),
+                   "status": "verified"}
+        por_id[pid] = entrada
+        paquete["pos"].append(entrada)
+    ejes = declinaciones_de(raiz)
+    for pid, lista in ejes.items():
+        if pid in por_id:
+            for eje in lista:
+                for d in eje["dimensiones"]:
+                    if d["nombre"] and d["nombre"] not in por_id[pid]["dims"]:
+                        por_id[pid]["dims"].append(d["nombre"])
 
-    # Las dimensiones viven en declensionNode, enlazadas por declensionRelatedId.
-    for nodo in raiz.findall("./declensionCollection/declensionNode"):
-        rel = _hijo(nodo, "declensionRelatedId")
-        dims = [_hijo(d, "dimensionName") for d in nodo.findall("./dimensionNode")]
-        dims = [d for d in dims if d]
-        destino = nombre_pos.get(rel)
-        if destino and dims:
-            for p in lista_pos:
-                if p["name"] == destino:
-                    for d in dims:
-                        if d not in p["dims"]:
-                            p["dims"].append(d)
-    if lista_pos:
-        paquete["pos"] = lista_pos
-
-    # ---- Fonología: pronunciación + romanización + teclas ------------------
-    # proGuide da grafema -> fonema; romGuide da grafema -> romanización;
-    # langPropCharRep da tecla -> grafema (ojo, en ese sentido).
+    # Fonología
     romanizacion = {}
     for nodo in raiz.findall("./romGuide/romGuideNode"):
         base = _sin_barras(_hijo(nodo, "romGuideBase"))
         if base:
             romanizacion[base] = _hijo(nodo, "romGuidePhon")
-
     tecla_de = {}
     for nodo in raiz.findall("./languageProperties/langPropCharRep/langPropCharRepNode"):
-        tecla = _hijo(nodo, "langPropCharRepCharacter")
         grafema = _hijo(nodo, "langPropCharRepValue")
         if grafema:
-            tecla_de[grafema] = tecla
-
-    fonologia, vistos = [], set()
+            tecla_de[grafema] = _hijo(nodo, "langPropCharRepCharacter")
+    vistos = set()
     for nodo in raiz.findall("./pronunciationCollection/proGuide"):
         base = _hijo(nodo, "proGuideBase")
         if not base or base in vistos:
             continue
         vistos.add(base)
-        fonologia.append({
-            "char": base,
-            "ipa": _sin_barras(_hijo(nodo, "proGuidePhon")),
-            "roman": romanizacion.get(base, ""),
-            "replacement": tecla_de.get(base, ""),
-            "notes": ""
-        })
-    # Grafemas que solo aparecen en las sustituciones de teclado.
+        paquete["phonology"].append({
+            "char": base, "ipa": _sin_barras(_hijo(nodo, "proGuidePhon")),
+            "roman": romanizacion.get(base, ""), "replacement": tecla_de.get(base, ""),
+            "notes": ""})
     for grafema, tecla in tecla_de.items():
         if grafema not in vistos:
             vistos.add(grafema)
-            fonologia.append({"char": grafema, "ipa": "",
-                              "roman": romanizacion.get(grafema, ""),
-                              "replacement": tecla, "notes": ""})
-    if fonologia:
-        paquete["phonology"] = fonologia
+            paquete["phonology"].append({"char": grafema, "ipa": "",
+                                         "roman": romanizacion.get(grafema, ""),
+                                         "replacement": tecla, "notes": ""})
 
-    sin_pareja = [b for b in romanizacion if b not in vistos]
-    if sin_pareja:
-        avisos.append("%d regla(s) de romanización no casan con ningún grafema del "
-                      "guion de pronunciación: %s" % (len(sin_pareja), " ".join(sorted(sin_pareja)[:8])))
-
-    # ---- Léxico ------------------------------------------------------------
-    lexico = []
+    # Léxico
     for nodo in raiz.findall("./lexicon/word"):
         palabra = _hijo(nodo, "conWord")
         if not palabra:
             continue
-        lexico.append({
-            "headword": palabra,
-            "ipa": _sin_barras(_hijo(nodo, "pronunciation")),
-            "roman": "",
-            "pos": nombre_pos.get(_hijo(nodo, "wordPosId"), ""),
+        paquete["lexicon"].append({
+            "headword": palabra, "ipa": _sin_barras(_hijo(nodo, "pronunciation")),
+            "roman": "", "pos": nombre_pos.get(_hijo(nodo, "wordPosId"), ""),
             "gloss": _hijo(nodo, "localWord"),
             "etymology": _texto_plano(_hijo(nodo, "wordEtymologyNotes")),
-            "status": "verified"
-        })
-    if lexico:
-        paquete["lexicon"] = lexico
+            "status": "verified"})
 
-    # ---- Reglas de conjugación --------------------------------------------
-    reglas = []
-    for n_regla, nodo in enumerate(raiz.findall("./declensionCollection/decGenRule")):
+    # Reglas, con su enlace a la casilla y el nombre de la dimensión
+    nombre_dim = {}
+    for lista in ejes.values():
+        for eje in lista:
+            for d in eje["dimensiones"]:
+                nombre_dim[d["id"]] = d["nombre"]
+    for n, nodo in enumerate(raiz.findall("./declensionCollection/decGenRule")):
         etiqueta = _hijo(nodo, "decGenRuleName")
-        pos = nombre_pos.get(_hijo(nodo, "decGenRuleTypeId"), "")
-        # Estos campos enlazan la regla con la casilla de declinación concreta
-        # a la que se aplica. Se conservan para que reinyectar no los pierda.
-        meta = {
-            "pgComb": _hijo(nodo, "decGenRuleComb"),
-            "pgIndex": _hijo(nodo, "decGenRuleIndex"),
-            "pgRegex": _hijo(nodo, "decGenRuleRegex"),
-            "pgGrupo": "r%03d" % n_regla,
-        }
-        transformaciones = nodo.findall("./decGenTrans")
-        for i, trans in enumerate(transformaciones, start=1):
-            buscar = _hijo(trans, "decGenTransRegex")
+        comb = _hijo(nodo, "decGenRuleComb")
+        ids = [x for x in comb.split(",") if x]
+        dimension = " · ".join(nombre_dim.get(x, x) for x in ids)
+        meta = {"pos": nombre_pos.get(_hijo(nodo, "decGenRuleTypeId"), ""),
+                "dimension": dimension, "pgComb": comb,
+                "pgIndex": _hijo(nodo, "decGenRuleIndex"),
+                "pgRegex": _hijo(nodo, "decGenRuleRegex"),
+                "pgGrupo": "r%03d" % n}
+        trans = nodo.findall("./decGenTrans")
+        for i, tr in enumerate(trans, start=1):
+            buscar = _hijo(tr, "decGenTransRegex")
             if not buscar:
                 continue
-            sufijo = "" if len(transformaciones) == 1 else " (%d)" % i
-            fila = {
-                "label": (etiqueta or "Regla sin nombre") + sufijo,
-                "pos": pos,
-                "find": buscar,
-                "replace": _hijo(trans, "decGenTransReplace"),
-                "flags": "",
-                "tests": []
-            }
+            fila = {"label": (etiqueta or "Regla sin nombre") +
+                             ("" if len(trans) == 1 else " (%d)" % i),
+                    "find": buscar, "replace": _hijo(tr, "decGenTransReplace"),
+                    "flags": "", "tests": []}
             fila.update(meta)
-            reglas.append(fila)
-    if reglas:
-        paquete["rules"] = reglas
+            paquete["rules"].append(fila)
 
-    # ---- Gramática ---------------------------------------------------------
-    gramatica = []
-    for capitulo in raiz.findall("./grammarCollection/grammarChapterNode"):
-        nombre_cap = _hijo(capitulo, "grammarChapterName")
-        for seccion in capitulo.findall("./grammarSectionsList/grammarSectionNode"):
-            titulo = _hijo(seccion, "grammarSectionName") or nombre_cap
-            gramatica.append({
-                "title": titulo,
-                "content": _texto_plano(_hijo(seccion, "grammarSectionText"))
-            })
-    if gramatica:
-        paquete["grammar"] = gramatica
+    # Gramática
+    for cap in raiz.findall("./grammarCollection/grammarChapterNode"):
+        nombre_cap = _hijo(cap, "grammarChapterName")
+        for sec in cap.findall("./grammarSectionsList/grammarSectionNode"):
+            paquete["grammar"].append({
+                "title": _hijo(sec, "grammarSectionName") or nombre_cap,
+                "content": _texto_plano(_hijo(sec, "grammarSectionText"))})
 
+    sin_pareja = [b for b in romanizacion if b not in vistos]
+    if sin_pareja:
+        avisos.append("%d regla(s) de romanización sin grafema correspondiente: %s"
+                      % (len(sin_pareja), " ".join(sorted(sin_pareja)[:8])))
     return paquete, avisos
 
 
 # --------------------------------------------------------------------------
-# Escritura del capítulo de gramática dentro del .pgd
+# Escritura en el .pgd
 # --------------------------------------------------------------------------
-#
-# Es la única escritura que hace esta herramienta, y nunca sobre tu archivo:
-# siempre produce uno nuevo. La gramática es la parte más segura del formato
-# porque sus nodos no llevan identificadores que puedan chocar con nada.
 
-def _xml_escape(texto):
-    return (texto.replace("&", "&amp;").replace("<", "&lt;")
-                 .replace(">", "&gt;").replace('"', "&quot;"))
+def _xesc(t):
+    return (t.replace("&", "&amp;").replace("<", "&lt;")
+             .replace(">", "&gt;").replace('"', "&quot;"))
 
 
-def _a_html_polyglot(texto, fuente="Charis SIL", tam="12"):
-    """PolyGlot guarda el texto de cada sección como HTML con fuente explícita."""
-    cuerpo = _xml_escape(texto).replace("\n", "<br>")
-    return '<font face="%s"size="%s"color="black">%s</font>' % (fuente, tam, cuerpo)
+def _html(texto, fuente="Charis SIL"):
+    return ('<font face="%s"size="12"color="black">%s</font>'
+            % (fuente, _xesc(texto or "").replace("\n", "<br>")))
 
 
-def _reemplazar_hijos(padre, etiqueta):
-    """Vacía todos los nodos <etiqueta> hijos de padre y devuelve el padre."""
+def _vaciar(padre, etiqueta):
     for viejo in padre.findall(etiqueta):
         padre.remove(viejo)
-    return padre
 
 
 def _sub(padre, etiqueta, texto=""):
-    import xml.etree.ElementTree as ET
     nodo = ET.SubElement(padre, etiqueta)
-    nodo.text = texto if texto is not None else ""
+    nodo.text = texto or ""
     return nodo
 
 
 def _asegurar(raiz, etiqueta):
-    import xml.etree.ElementTree as ET
     nodo = raiz.find("./" + etiqueta)
-    if nodo is None:
-        nodo = ET.SubElement(raiz, etiqueta)
-    return nodo
+    return nodo if nodo is not None else ET.SubElement(raiz, etiqueta)
 
 
-def _escribir_pos(raiz, lista, informe):
-    """Reescribe partsOfSpeech y devuelve el mapa nombre -> id."""
-    coleccion = _asegurar(raiz, "partsOfSpeech")
-    _reemplazar_hijos(coleccion, "partOfSpeechNode")
-    mapa = {}
-    for i, p in enumerate(lista, start=1):
-        nombre = (p.get("name") or "").strip()
-        if not nombre:
-            continue
-        pid = str(i)
-        mapa[nombre] = pid
-        nodo = _sub(coleccion, "partOfSpeechNode")
-        _sub(nodo, "partOfSpeechId", pid)
-        _sub(nodo, "partOfSpeechName", nombre)
-        _sub(nodo, "partOfSpeechNotes", _a_html_polyglot(p.get("notes") or ""))
-        _sub(nodo, "partOfSpeechGloss", "")
-        _sub(nodo, "partOfSpeechPattern", "")
-        _sub(nodo, "definitionMandatoryPartOfSpeech", "F")
-        _sub(nodo, "pronunciationMandatoryPartOfSpeech", "F")
-        informe["pos"] += 1
-    return mapa
+def _comb_para(ejes_pos, dimension):
+    """Construye el decGenRuleComb que ata una regla a una casilla.
 
-
-def _mapa_pos_existente(raiz):
-    mapa = {}
-    for nodo in raiz.findall("./partsOfSpeech/partOfSpeechNode"):
-        nombre = _hijo(nodo, "partOfSpeechName").strip()
-        if nombre:
-            mapa[nombre] = _hijo(nodo, "partOfSpeechId")
-    return mapa
-
-
-def _escribir_lexicon(raiz, lista, mapa_pos, informe, avisos):
-    coleccion = _asegurar(raiz, "lexicon")
-    _reemplazar_hijos(coleccion, "word")
-    sin_pos = set()
-    for i, w in enumerate(lista, start=1):
-        palabra = (w.get("headword") or "").strip()
-        if not palabra:
-            continue
-        nombre_pos = (w.get("pos") or "").strip()
-        pid = mapa_pos.get(nombre_pos, "")
-        if nombre_pos and not pid:
-            sin_pos.add(nombre_pos)
-        nodo = _sub(coleccion, "word")
-        _sub(nodo, "wordId", str(i))
-        _sub(nodo, "conWord", palabra)
-        _sub(nodo, "localWord", w.get("gloss") or "")
-        _sub(nodo, "wordPosId", pid)
-        _sub(nodo, "pronunciation", w.get("ipa") or "")
-        _sub(nodo, "definition", _a_html_polyglot(w.get("gloss") or ""))
-        _sub(nodo, "wordEtymologyNotes", _a_html_polyglot(w.get("etymology") or ""))
-        _sub(nodo, "autoDeclOverride", "F")
-        _sub(nodo, "wordProcOverride", "F")
-        _sub(nodo, "wordRuleOverride", "F")
-        _sub(nodo, "wordClassCollection")
-        _sub(nodo, "wordClassTextValueCollection")
-        informe["lexicon"] += 1
-    if sin_pos:
-        avisos.append("Palabras con categoría no declarada, quedan sin Part of Speech: "
-                      + ", ".join(sorted(sin_pos)))
-
-
-def _escribir_fonologia(raiz, lista, informe):
-    pro = _asegurar(raiz, "pronunciationCollection")
-    _reemplazar_hijos(pro, "proGuide")
-    rom = _asegurar(raiz, "romGuide")
-    _reemplazar_hijos(rom, "romGuideNode")
-    props = _asegurar(raiz, "languageProperties")
-    charrep = props.find("./langPropCharRep")
-    if charrep is None:
-        charrep = _sub(props, "langPropCharRep")
-    _reemplazar_hijos(charrep, "langPropCharRepNode")
-
-    for f in lista:
-        grafema = (f.get("char") or "").strip()
-        if not grafema:
-            continue
-        nodo = _sub(pro, "proGuide")
-        _sub(nodo, "proGuideBase", grafema)
-        # PolyGlot guarda el fonema entre barras; se restituyen al escribir.
-        ipa = (f.get("ipa") or "").strip()
-        _sub(nodo, "proGuidePhon", ("/%s/" % ipa) if ipa else "")
-        informe["phonology"] += 1
-
-        roman = (f.get("roman") or "").strip()
-        if roman:
-            rnodo = _sub(rom, "romGuideNode")
-            _sub(rnodo, "romGuideBase", grafema)
-            _sub(rnodo, "romGuidePhon", roman)
-
-        tecla = (f.get("replacement") or "").strip()
-        if tecla:
-            cnodo = _sub(charrep, "langPropCharRepNode")
-            _sub(cnodo, "langPropCharRepCharacter", tecla)
-            _sub(cnodo, "langPropCharRepValue", grafema)
-
-
-def _escribir_reglas(raiz, lista, mapa_pos, informe, avisos):
-    coleccion = _asegurar(raiz, "declensionCollection")
-    _reemplazar_hijos(coleccion, "decGenRule")
-
-    # Reagrupar las transformaciones que salieron de una misma regla original.
-    grupos, orden = {}, []
-    for r in lista:
-        clave = r.get("pgGrupo") or ("%s|%s|%s" % (r.get("label",""), r.get("pos",""),
-                                                   r.get("pgComb","")))
-        if clave not in grupos:
-            grupos[clave] = []
-            orden.append(clave)
-        grupos[clave].append(r)
-
-    sin_comb = 0
-    for clave in orden:
-        filas = grupos[clave]
-        cabeza = filas[0]
-        # El nombre pierde el sufijo "(n)" que añadió `extraer` al desdoblar.
-        etiqueta = re.sub(r"\s*\(\d+\)$", "", cabeza.get("label") or "")
-        comb = cabeza.get("pgComb")
-        if not comb:
-            sin_comb += 1
-        nodo = _sub(coleccion, "decGenRule")
-        _sub(nodo, "decGenRuleName", etiqueta)
-        _sub(nodo, "decGenRuleTypeId", mapa_pos.get((cabeza.get("pos") or "").strip(), ""))
-        _sub(nodo, "decGenRuleComb", comb or "")
-        _sub(nodo, "decGenRuleIndex", cabeza.get("pgIndex") or "1")
-        _sub(nodo, "decGenRuleRegex", cabeza.get("pgRegex") or ".*")
-        _sub(nodo, "decGenRuleApplyToClasses")
-        for r in filas:
-            trans = _sub(nodo, "decGenTrans")
-            _sub(trans, "decGenTransRegex", r.get("find") or "")
-            _sub(trans, "decGenTransReplace", r.get("replace") or "")
-            informe["rules"] += 1
-    if sin_comb:
-        avisos.append("%d regla(s) sin enlace a casilla de declinación (decGenRuleComb): "
-                      "PolyGlot las mostrará sin asignar. Son reglas creadas fuera de "
-                      "PolyGlot o extraídas con una versión anterior." % sin_comb)
-
-
-def inyectar_gramatica(ruta_pgd, secciones, destino, fuente="Charis SIL"):
-    """Escribe las secciones como capítulos de gramática en una copia del .pgd."""
-    import xml.etree.ElementTree as ET
-
-    if not zipfile.is_zipfile(ruta_pgd):
-        raise ValueError("El .pgd no es un contenedor ZIP; esta versión no está contemplada")
-
-    with zipfile.ZipFile(ruta_pgd) as z:
-        entradas = [(n, z.read(n)) for n in z.namelist()]
-    principales = [n for n, _ in entradas
-                   if n.lower().endswith(".xml") and not n.startswith("reversion/")]
-    if not principales:
-        raise ValueError("No se encontró el XML principal dentro del .pgd")
-    nombre_xml = principales[0]
-
-    crudo = dict(entradas)[nombre_xml]
-    raiz = ET.fromstring(crudo)
-
-    coleccion = raiz.find("./grammarCollection")
-    if coleccion is None:
-        coleccion = ET.SubElement(raiz, "grammarCollection")
-
-    # Agrupar por capítulo a partir del número del título: "3.2 Algo" -> "3".
-    capitulos, orden_cap = {}, []
-    for s in secciones:
-        titulo = (s.get("title") or "").strip()
-        m = re.match(r"^(\d+)", titulo)
-        clave = m.group(1) if m else "Sin capítulo"
-        if clave not in capitulos:
-            capitulos[clave] = []
-            orden_cap.append(clave)
-        capitulos[clave].append(s)
-
-    # El título del capítulo sale de su propia entrada ("3 Sustantivos"), si viene.
-    nombres = {}
-    for clave in orden_cap:
-        for s in capitulos[clave]:
-            t = (s.get("title") or "").strip()
-            if re.match(r"^" + re.escape(clave) + r"\s+\S", t):
-                nombres[clave] = t
+    El formato se dedujo de los valores que guarda PolyGlot 3.6.1: una ranura
+    por eje de declinación, separadas y envueltas en comas, con el id de la
+    dimensión elegida en la ranura de su eje y el resto vacías.
+    """
+    if not ejes_pos or not dimension:
+        return None
+    # La etiqueta de una regla suele llevar un calificador tras «·»
+    # («Acusativo · tema vocálico»); la casilla la determina lo que va antes.
+    objetivo = dimension.split("·")[0].strip().lower()
+    ranuras = []
+    encontrado = False
+    for eje in ejes_pos:
+        elegido = ""
+        for d in eje["dimensiones"]:
+            if (d["nombre"] or "").strip().lower() == objetivo:
+                elegido = d["id"]
+                encontrado = True
                 break
-        nombres.setdefault(clave, clave)
-
-    existentes = set()
-    for cap in coleccion.findall("./grammarChapterNode"):
-        nodo = cap.find("grammarChapterName")
-        if nodo is not None and nodo.text:
-            existentes.add(nodo.text.strip())
-
-    añadidos_cap, añadidas_sec, omitidos = 0, 0, []
-    for clave in orden_cap:
-        nombre_cap = nombres[clave]
-        if nombre_cap in existentes:
-            omitidos.append(nombre_cap)
-            continue
-        cap = ET.SubElement(coleccion, "grammarChapterNode")
-        ET.SubElement(cap, "grammarChapterName").text = nombre_cap
-        lista = ET.SubElement(cap, "grammarSectionsList")
-        for s in capitulos[clave]:
-            titulo = (s.get("title") or "").strip()
-            if titulo == nombre_cap and not (s.get("content") or "").strip():
-                continue          # cabecera de capítulo sin texto propio
-            nodo = ET.SubElement(lista, "grammarSectionNode")
-            ET.SubElement(nodo, "gptSelected").text = "F"
-            ET.SubElement(nodo, "grammarSectionName").text = titulo
-            ET.SubElement(nodo, "grammarSectionRecordingXID").text = "-1"
-            ET.SubElement(nodo, "grammarSectionText").text = _a_html_polyglot(
-                s.get("content") or "", fuente)
-            añadidas_sec += 1
-        añadidos_cap += 1
-
-    nuevo_xml = ET.tostring(raiz, encoding="UTF-8", xml_declaration=True)
-
-    with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
-        for nombre, datos in entradas:
-            z.writestr(nombre, nuevo_xml if nombre == nombre_xml else datos)
-
-    return {"capitulos": añadidos_cap, "secciones": añadidas_sec, "omitidos": omitidos}
-
-
-SECCIONES_INYECTABLES = ["grammar", "pos", "lexicon", "phonology", "rules"]
+        ranuras.append(elegido)
+    return ("," + ",".join(ranuras) + ",").replace(",,,", ",,") if encontrado else None
 
 
 def inyectar(ruta_pgd, paquete, destino, secciones, fuente="Charis SIL"):
-    """Escribe las secciones pedidas en una copia del .pgd. Reemplaza, no suma."""
-    import xml.etree.ElementTree as ET
+    raiz, nombre_xml, entradas = _abrir(ruta_pgd)
+    if nombre_xml is None:
+        raise ValueError("solo se escribe en .pgd con contenedor ZIP")
+    informe = dict((k, 0) for k in secciones)
+    avisos, detalle_comb = [], []
 
-    if not zipfile.is_zipfile(ruta_pgd):
-        raise ValueError("El .pgd no es un contenedor ZIP; esta versión no está contemplada")
+    if "pos" in secciones and paquete["pos"]:
+        col = _asegurar(raiz, "partsOfSpeech")
+        # Los ids se conservan por nombre: renumerarlos desconectaría las
+        # declinaciones, que apuntan a la categoría por su id.
+        previos = {}
+        for nodo in col.findall("partOfSpeechNode"):
+            n = _hijo(nodo, "partOfSpeechName").strip()
+            if n:
+                previos[n] = _hijo(nodo, "partOfSpeechId")
+        usados = set(previos.values())
+        siguiente = [max([int(x) for x in usados if x.isdigit()] or [0]) + 1]
 
-    with zipfile.ZipFile(ruta_pgd) as z:
-        entradas = [(n, z.read(n)) for n in z.namelist()]
-    principales = [n for n, _ in entradas
-                   if n.lower().endswith(".xml") and not n.startswith("reversion/")]
-    if not principales:
-        raise ValueError("No se encontró el XML principal dentro del .pgd")
-    nombre_xml = principales[0]
-    raiz = ET.fromstring(dict(entradas)[nombre_xml])
+        def id_para(nombre):
+            if nombre in previos:
+                return previos[nombre]
+            while str(siguiente[0]) in usados:
+                siguiente[0] += 1
+            nuevo = str(siguiente[0])
+            usados.add(nuevo)
+            return nuevo
 
-    informe = dict((k, 0) for k in SECCIONES_INYECTABLES)
-    avisos = []
+        _vaciar(col, "partOfSpeechNode")
+        for p in paquete["pos"]:
+            nombre = (p.get("name") or "").strip()
+            if not nombre:
+                continue
+            nodo = _sub(col, "partOfSpeechNode")
+            _sub(nodo, "partOfSpeechId", id_para(nombre))
+            _sub(nodo, "partOfSpeechName", nombre)
+            _sub(nodo, "partOfSpeechNotes", _html(p.get("notes"), fuente))
+            _sub(nodo, "partOfSpeechGloss")
+            _sub(nodo, "partOfSpeechPattern")
+            _sub(nodo, "definitionMandatoryPartOfSpeech", "F")
+            _sub(nodo, "pronunciationMandatoryPartOfSpeech", "F")
+            informe["pos"] += 1
 
-    # Las categorías van primero: el léxico y las reglas necesitan sus ids.
-    if "pos" in secciones and paquete.get("pos"):
-        mapa_pos = _escribir_pos(raiz, paquete["pos"], informe)
-    else:
-        mapa_pos = _mapa_pos_existente(raiz)
+    mapa_pos = {}
+    for nodo in raiz.findall("./partsOfSpeech/partOfSpeechNode"):
+        n = _hijo(nodo, "partOfSpeechName").strip()
+        if n:
+            mapa_pos[n] = _hijo(nodo, "partOfSpeechId")
 
-    if "phonology" in secciones and paquete.get("phonology"):
-        _escribir_fonologia(raiz, paquete["phonology"], informe)
+    if "phonology" in secciones and paquete["phonology"]:
+        pro = _asegurar(raiz, "pronunciationCollection")
+        _vaciar(pro, "proGuide")
+        rom = _asegurar(raiz, "romGuide")
+        _vaciar(rom, "romGuideNode")
+        props = _asegurar(raiz, "languageProperties")
+        charrep = props.find("./langPropCharRep")
+        if charrep is None:
+            charrep = _sub(props, "langPropCharRep")
+        _vaciar(charrep, "langPropCharRepNode")
+        for f in paquete["phonology"]:
+            g = (f.get("char") or "").strip()
+            if not g:
+                continue
+            nodo = _sub(pro, "proGuide")
+            _sub(nodo, "proGuideBase", g)
+            ipa = (f.get("ipa") or "").strip()
+            _sub(nodo, "proGuidePhon", "/%s/" % ipa if ipa else "")
+            informe["phonology"] += 1
+            if (f.get("roman") or "").strip():
+                r = _sub(rom, "romGuideNode")
+                _sub(r, "romGuideBase", g)
+                _sub(r, "romGuidePhon", f["roman"].strip())
+            if (f.get("replacement") or "").strip():
+                c = _sub(charrep, "langPropCharRepNode")
+                _sub(c, "langPropCharRepCharacter", f["replacement"].strip())
+                _sub(c, "langPropCharRepValue", g)
 
-    if "lexicon" in secciones and paquete.get("lexicon"):
-        _escribir_lexicon(raiz, paquete["lexicon"], mapa_pos, informe, avisos)
+    if "lexicon" in secciones and paquete["lexicon"]:
+        col = _asegurar(raiz, "lexicon")
+        _vaciar(col, "word")
+        huerfanas = set()
+        for i, w in enumerate(paquete["lexicon"], start=1):
+            palabra = (w.get("headword") or "").strip()
+            if not palabra:
+                continue
+            nombre_pos = (w.get("pos") or "").strip()
+            pid = mapa_pos.get(nombre_pos, "")
+            if nombre_pos and not pid:
+                huerfanas.add(nombre_pos)
+            nodo = _sub(col, "word")
+            _sub(nodo, "wordId", str(i))
+            _sub(nodo, "conWord", palabra)
+            _sub(nodo, "localWord", w.get("gloss"))
+            _sub(nodo, "wordPosId", pid)
+            _sub(nodo, "pronunciation", w.get("ipa"))
+            _sub(nodo, "definition", _html(w.get("gloss"), fuente))
+            _sub(nodo, "wordEtymologyNotes", _html(w.get("etymology"), fuente))
+            _sub(nodo, "autoDeclOverride", "F")
+            _sub(nodo, "wordProcOverride", "F")
+            _sub(nodo, "wordRuleOverride", "F")
+            _sub(nodo, "wordClassCollection")
+            _sub(nodo, "wordClassTextValueCollection")
+            informe["lexicon"] += 1
+        if huerfanas:
+            avisos.append("Categorías no declaradas, sus palabras quedan sin asignar: "
+                          + ", ".join(sorted(huerfanas)))
 
-    if "rules" in secciones and paquete.get("rules"):
-        _escribir_reglas(raiz, paquete["rules"], mapa_pos, informe, avisos)
+    if "rules" in secciones and paquete["rules"]:
+        ejes = declinaciones_de(raiz)
+        col = _asegurar(raiz, "declensionCollection")
+        _vaciar(col, "decGenRule")
+        grupos, orden = {}, []
+        for r in paquete["rules"]:
+            clave = r.get("pgGrupo") or "%s|%s|%s" % (r.get("label"), r.get("pos"),
+                                                      r.get("dimension"))
+            if clave not in grupos:
+                grupos[clave] = []
+                orden.append(clave)
+            grupos[clave].append(r)
+        sin_casilla = []
+        for clave in orden:
+            filas = grupos[clave]
+            cab = filas[0]
+            pos_nombre = (cab.get("pos") or "").strip()
+            pid = mapa_pos.get(pos_nombre, "")
+            etiqueta = re.sub(r"\s*\(\d+\)$", "", cab.get("label") or "")
+            # Prioridad: el comb original; si no, se resuelve por el nombre de
+            # la dimensión; si tampoco, se busca por la etiqueta de la regla.
+            comb = cab.get("pgComb") or ""
+            if not comb:
+                comb = (_comb_para(ejes.get(pid), cab.get("dimension"))
+                        or _comb_para(ejes.get(pid), etiqueta) or "")
+                if comb:
+                    detalle_comb.append("%s → %s" % (etiqueta, comb))
+            if not comb:
+                sin_casilla.append(etiqueta)
+            nodo = _sub(col, "decGenRule")
+            _sub(nodo, "decGenRuleName", etiqueta)
+            _sub(nodo, "decGenRuleTypeId", pid)
+            _sub(nodo, "decGenRuleComb", comb)
+            _sub(nodo, "decGenRuleIndex", cab.get("pgIndex") or "1")
+            _sub(nodo, "decGenRuleRegex", cab.get("pgRegex") or ".*")
+            _sub(nodo, "decGenRuleApplyToClasses")
+            for r in filas:
+                tr = _sub(nodo, "decGenTrans")
+                _sub(tr, "decGenTransRegex", r.get("find"))
+                _sub(tr, "decGenTransReplace", r.get("replace"))
+                informe["rules"] += 1
+        if sin_casilla:
+            avisos.append("%d regla(s) sin casilla de declinación: PolyGlot las guarda "
+                          "pero no las aplica. Renombra la regla o su campo \"dimension\" "
+                          "para que coincida con una dimensión de su categoría (%s)"
+                          % (len(sin_casilla), ", ".join(sin_casilla[:5])))
 
-    if "grammar" in secciones and paquete.get("grammar"):
-        coleccion = _asegurar(raiz, "grammarCollection")
-        _reemplazar_hijos(coleccion, "grammarChapterNode")
+    if "grammar" in secciones and paquete["grammar"]:
+        col = _asegurar(raiz, "grammarCollection")
+        _vaciar(col, "grammarChapterNode")
         capitulos, orden_cap = {}, []
         for s in paquete["grammar"]:
-            titulo = (s.get("title") or "").strip()
-            m = re.match(r"^(\d+)", titulo)
+            t = (s.get("title") or "").strip()
+            m = re.match(r"^(\d+)", t)
             clave = m.group(1) if m else "Sin capítulo"
             if clave not in capitulos:
                 capitulos[clave] = []
                 orden_cap.append(clave)
             capitulos[clave].append(s)
-        nombres = {}
         for clave in orden_cap:
+            nombre_cap = clave
             for s in capitulos[clave]:
                 t = (s.get("title") or "").strip()
                 if re.match(r"^" + re.escape(clave) + r"\s+\S", t):
-                    nombres[clave] = t
+                    nombre_cap = t
                     break
-            nombres.setdefault(clave, clave)
-        for clave in orden_cap:
-            cap = _sub(coleccion, "grammarChapterNode")
-            _sub(cap, "grammarChapterName", nombres[clave])
+            cap = _sub(col, "grammarChapterNode")
+            _sub(cap, "grammarChapterName", nombre_cap)
             lista = _sub(cap, "grammarSectionsList")
             for s in capitulos[clave]:
-                titulo = (s.get("title") or "").strip()
-                if titulo == nombres[clave] and not (s.get("content") or "").strip():
+                t = (s.get("title") or "").strip()
+                if t == nombre_cap and not (s.get("content") or "").strip():
                     continue
                 nodo = _sub(lista, "grammarSectionNode")
                 _sub(nodo, "gptSelected", "F")
-                _sub(nodo, "grammarSectionName", titulo)
+                _sub(nodo, "grammarSectionName", t)
                 _sub(nodo, "grammarSectionRecordingXID", "-1")
-                _sub(nodo, "grammarSectionText", _a_html_polyglot(s.get("content") or "", fuente))
+                _sub(nodo, "grammarSectionText", _html(s.get("content"), fuente))
                 informe["grammar"] += 1
 
-    if paquete.get("classes") and "classes" in secciones:
-        avisos.append("Las clases léxicas no se escriben: el contenedor está vacío en el "
-                      "archivo de origen y su estructura interna no es conocida. "
-                      "Créalas a mano en PolyGlot.")
+    if "classes" in secciones:
+        avisos.append("Las clases léxicas no se escriben: su contenedor está vacío en el "
+                      "archivo de origen y su estructura interna no es conocida.")
 
-    nuevo_xml = ET.tostring(raiz, encoding="UTF-8", xml_declaration=True)
+    nuevo = ET.tostring(raiz, encoding="UTF-8", xml_declaration=True)
     with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
         for nombre, datos in entradas:
-            z.writestr(nombre, nuevo_xml if nombre == nombre_xml else datos)
-
-    return informe, avisos
-
-
-def cmd_inyectar_todo(args):
-    try:
-        with io.open(args.paquete, "r", encoding="utf-8") as fh:
-            paquete = json.load(fh)
-    except (IOError, OSError, ValueError) as exc:
-        print(rojo("No se pudo leer el paquete: %s" % exc))
-        return 1
-
-    pedidas = [s.strip() for s in args.secciones.split(",") if s.strip()]
-    if "todo" in pedidas:
-        pedidas = list(SECCIONES_INYECTABLES)
-    desconocidas = [s for s in pedidas if s not in SECCIONES_INYECTABLES + ["classes"]]
-    if desconocidas:
-        print(rojo("Sección desconocida: %s" % ", ".join(desconocidas)))
-        print(gris("Válidas: %s, todo" % ", ".join(SECCIONES_INYECTABLES)))
-        return 1
-
-    destino = args.salida
-    if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
-        raiz_nombre, ext = os.path.splitext(os.path.basename(args.pgd))
-        destino = os.path.join(destino, raiz_nombre + " (inyectado)" + ext)
-    if os.path.abspath(destino) == os.path.abspath(args.pgd):
-        print(rojo("La salida no puede ser el mismo archivo de entrada."))
-        return 1
-    if os.path.exists(destino) and not args.sobrescribir:
-        print(rojo("Ya existe %s" % destino))
-        print(gris("Usa --sobrescribir para reemplazarlo."))
-        return 1
-
-    try:
-        informe, avisos = inyectar(args.pgd, paquete, destino, pedidas, args.fuente)
-    except Exception as exc:
-        print(rojo("No se pudo escribir: %s" % exc))
-        return 1
-
-    print(negrita("\nEscrito %s" % destino))
-    for clave in SECCIONES_INYECTABLES:
-        if clave in pedidas:
-            marca = verde("✓") if informe[clave] else gris("·")
-            print("  %s %-11s %d" % (marca, clave, informe[clave]))
-    for a in avisos:
-        print(ambar("  AVISO  ") + a)
-    print("")
-    print(gris("Cada sección escrita REEMPLAZA la que hubiera en el archivo."))
-    print(gris("Tu .pgd de origen no se ha modificado. Abre el nuevo y compruébalo."))
-    return 0
-
-
-def cmd_inyectar(args):
-    try:
-        with io.open(args.paquete, "r", encoding="utf-8") as fh:
-            datos = json.load(fh)
-    except (IOError, OSError, ValueError) as exc:
-        print(rojo("No se pudo leer el paquete: %s" % exc))
-        return 1
-
-    secciones = datos.get("grammar") or []
-    if not secciones:
-        print(ambar("El paquete no trae ninguna sección de gramática."))
-        return 1
-
-    destino = args.salida
-    if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
-        base = os.path.basename(args.pgd)
-        raiz_nombre, ext = os.path.splitext(base)
-        destino = os.path.join(destino, raiz_nombre + " (con gramática)" + ext)
-    if os.path.exists(destino) and not args.sobrescribir:
-        print(rojo("Ya existe %s" % destino))
-        print(gris("Usa --sobrescribir o elige otro nombre."))
-        return 1
-    if os.path.abspath(destino) == os.path.abspath(args.pgd):
-        print(rojo("La salida no puede ser el mismo archivo de entrada."))
-        return 1
-
-    try:
-        r = inyectar_gramatica(args.pgd, secciones, destino, args.fuente)
-    except Exception as exc:
-        print(rojo("No se pudo escribir: %s" % exc))
-        return 1
-
-    print(negrita("\nEscrito %s" % destino))
-    print("  capítulos nuevos   %d" % r["capitulos"])
-    print("  secciones escritas %d" % r["secciones"])
-    if r["omitidos"]:
-        print(ambar("  capítulos omitidos por existir ya: ") + ", ".join(r["omitidos"]))
-    print("")
-    print(gris("Tu archivo original no se ha tocado. Abre el nuevo en PolyGlot y compruébalo"))
-    print(gris("antes de darlo por bueno."))
-    return 0
-
-
-def cmd_extraer(args):
-    try:
-        paquete, avisos = extraer_pgd(args.pgd)
-    except (IOError, OSError, ValueError) as exc:
-        print(rojo("No se pudo leer el .pgd: %s" % exc))
-        return 1
-    except Exception as exc:                      # XML corrupto o esquema distinto
-        print(rojo("No se pudo interpretar el .pgd: %s" % exc))
-        print(gris("Corre `inspeccionar` sobre el mismo archivo y comparte la salida."))
-        return 1
-
-    # Aceptar tanto una carpeta como un archivo: si apuntas a una carpeta, se
-    # le pone el nombre por defecto en vez de fallar.
-    destino = os.path.expanduser(args.salida)
-    if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
-        destino = os.path.join(destino, "paquete.json")
-
-    carpeta = os.path.dirname(os.path.abspath(destino))
-    if not os.path.isdir(carpeta):
-        print(rojo("No existe la carpeta %s" % carpeta))
-        print(gris("Créala primero, o arrastra la carpeta desde el Finder a la Terminal "
-                   "para ver su ruta exacta."))
-        return 1
-
-    texto = json.dumps(paquete, ensure_ascii=False, indent=2)
-    try:
-        with io.open(destino, "w", encoding="utf-8") as fh:
-            fh.write(texto)
-    except (IOError, OSError) as exc:
-        print(rojo("No se pudo escribir en %s: %s" % (destino, exc)))
-        return 1
-    args.salida = destino
-
-    print(negrita("\nExtraído de %s" % os.path.basename(args.pgd)))
-    for clave in ("phonology", "lexicon", "pos", "rules", "grammar"):
-        if clave in paquete:
-            print("  %-11s %d" % (clave, len(paquete[clave])))
-    for a in avisos:
-        print(ambar("  AVISO  ") + a)
-    print("")
-    print(verde("Guardado en %s" % os.path.abspath(args.salida)))
-    print(gris("Ábrelo, copia todo el contenido y pégalo en el cuaderno → "
-               "Copia de seguridad → Traer novedades → Actualizar."))
-    print(gris("El .pgd no se ha modificado."))
-    return 0
-
-
-# --------------------------------------------------------------------------
-# Inspección del archivo .pgd de PolyGlot
-# --------------------------------------------------------------------------
-
-def inspeccionar_pgd(ruta_pgd, destino=None):
-    """Lee (sin modificar) un .pgd y describe su estructura XML real."""
-    import xml.etree.ElementTree as ET
-
-    if not os.path.isfile(ruta_pgd):
-        print(rojo("No existe el archivo: %s" % ruta_pgd))
-        return 1
-
-    lineas = ["# Estructura de %s" % os.path.basename(ruta_pgd), ""]
-    xml_crudo = None
-
-    if zipfile.is_zipfile(ruta_pgd):
-        with zipfile.ZipFile(ruta_pgd) as z:
-            nombres = z.namelist()
-            lineas.append("Contenedor ZIP con %d entrada(s):" % len(nombres))
-            lineas.append("")
-            for n in nombres:
-                info = z.getinfo(n)
-                lineas.append("- `%s` — %d bytes" % (n, info.file_size))
-            lineas.append("")
-            candidatos = [n for n in nombres if n.lower().endswith(".xml")]
-            if candidatos:
-                xml_crudo = z.read(candidatos[0])
-                lineas.append("XML principal: `%s`" % candidatos[0])
-                lineas.append("")
-    else:
-        lineas.append("Archivo XML plano (sin contenedor ZIP).")
-        lineas.append("")
-        with open(ruta_pgd, "rb") as fh:
-            xml_crudo = fh.read()
-
-    if xml_crudo:
-        try:
-            raiz = ET.fromstring(xml_crudo)
-        except ET.ParseError as exc:
-            lineas.append("No se pudo interpretar el XML: %s" % exc)
-        else:
-            conteo, muestras = {}, {}
-
-            def recorrer(nodo, camino):
-                ruta = camino + "/" + nodo.tag
-                conteo[ruta] = conteo.get(ruta, 0) + 1
-                texto = (nodo.text or "").strip()
-                if texto and ruta not in muestras:
-                    muestras[ruta] = texto[:60]
-                for hijo in nodo:
-                    recorrer(hijo, ruta)
-
-            recorrer(raiz, "")
-            lineas.append("## Árbol de etiquetas")
-            lineas.append("")
-            lineas.append("| Ruta | Veces | Ejemplo de contenido |")
-            lineas.append("|---|---|---|")
-            for ruta in sorted(conteo):
-                ejemplo = muestras.get(ruta, "").replace("|", "\\|")
-                lineas.append("| `%s` | %d | %s |" % (ruta, conteo[ruta], ejemplo))
-            lineas.append("")
-
-    reporte = "\n".join(lineas)
-    print(reporte)
-    if destino:
-        with io.open(destino, "w", encoding="utf-8") as fh:
-            fh.write(reporte)
-        print(verde("\nGuardado en %s" % destino))
-        print(gris("Comparte ese archivo si quieres que se añada escritura directa al .pgd."))
-    return 0
-
-
-# --------------------------------------------------------------------------
-# Importar el respaldo JSON del cuaderno web
-# --------------------------------------------------------------------------
-
-def _slug(texto):
-    limpio = re.sub(r"[^\w\s'-]", "", texto, flags=re.UNICODE).strip()
-    limpio = re.sub(r"\s+", "-", limpio)
-    return limpio or "sin-titulo"
-
-
-def _escribir_nota(ruta, frontmatter, cuerpo=""):
-    carpeta = os.path.dirname(ruta)
-    if carpeta and not os.path.isdir(carpeta):
-        os.makedirs(carpeta)
-    lineas = ["---"]
-    for clave, valor in frontmatter:
-        if isinstance(valor, list):
-            lineas.append("%s: [%s]" % (clave, ", ".join(valor)))
-        else:
-            texto = como_texto(valor)
-            if texto and (":" in texto or texto[0] in "[{#&*!|>%@`\"'"):
-                texto = '"%s"' % texto.replace('"', '\\"')
-            lineas.append("%s: %s" % (clave, texto))
-    lineas.append("---")
-    lineas.append("")
-    lineas.append(cuerpo)
-    with io.open(ruta, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lineas))
-
-
-def importar_cuaderno(ruta_json, ruta_vault, sobrescribir=False):
-    """Convierte el respaldo JSON del cuaderno web en notas de Obsidian."""
-    try:
-        with io.open(ruta_json, "r", encoding="utf-8") as fh:
-            datos = json.load(fh)
-    except (IOError, OSError, ValueError) as exc:
-        print(rojo("No se pudo leer el JSON: %s" % exc))
-        return 1
-
-    creadas, omitidas = 0, 0
-
-    def crear(ruta, frontmatter, cuerpo=""):
-        nonlocal creadas, omitidas
-        if os.path.exists(ruta) and not sobrescribir:
-            omitidas += 1
-            return
-        _escribir_nota(ruta, frontmatter, cuerpo)
-        creadas += 1
-
-    for w in datos.get("lexicon", []):
-        palabra = como_texto(w.get("headword"))
-        if not palabra:
-            continue
-        crear(os.path.join(ruta_vault, "Lexicon", _slug(palabra) + ".md"), [
-            ("tipo", "lexema"),
-            ("palabra", palabra),
-            ("ipa", w.get("ipa", "")),
-            ("romanizacion", w.get("roman", "")),
-            ("pos", w.get("pos", "")),
-            ("glosa", w.get("gloss", "")),
-            ("etimologia", w.get("etymology", "")),
-            ("estado", w.get("status", "borrador")),
-        ])
-
-    for p in datos.get("pos", []):
-        nombre = como_texto(p.get("name"))
-        if not nombre:
-            continue
-        crear(os.path.join(ruta_vault, "Categorias", _slug(nombre) + ".md"), [
-            ("tipo", "pos"),
-            ("etiqueta", nombre),
-            ("dimensiones", [como_texto(d) for d in (p.get("dims") or [])]),
-        ], como_texto(p.get("notes")))
-
-    for r in datos.get("rules", []):
-        etiqueta = como_texto(r.get("label"))
-        if not etiqueta:
-            continue
-        fm = [
-            ("tipo", "regla"),
-            ("etiqueta", etiqueta),
-            ("pos", r.get("pos", "")),
-            ("buscar", r.get("find", "")),
-            ("reemplazar", r.get("replace", "")),
-            ("flags", r.get("flags", "")),
-        ]
-        cuerpo_pruebas = ""
-        pruebas = r.get("tests") or []
-        if pruebas:
-            bloque = ["pruebas:"]
-            for t in pruebas:
-                bloque.append("  - entrada: %s" % como_texto(t.get("input")))
-                bloque.append("    esperado: %s" % como_texto(t.get("expected")))
-            cuerpo_pruebas = "\n".join(bloque)
-        ruta = os.path.join(ruta_vault, "Conjugaciones", _slug(etiqueta) + ".md")
-        if os.path.exists(ruta) and not sobrescribir:
-            omitidas += 1
-        else:
-            carpeta = os.path.dirname(ruta)
-            if not os.path.isdir(carpeta):
-                os.makedirs(carpeta)
-            lineas = ["---"]
-            for clave, valor in fm:
-                texto = como_texto(valor)
-                if texto and (":" in texto or texto[:1] in "[{#&*!|>%@`\"'"):
-                    texto = '"%s"' % texto.replace('"', '\\"')
-                lineas.append("%s: %s" % (clave, texto))
-            if cuerpo_pruebas:
-                lineas.append(cuerpo_pruebas)
-            lineas += ["---", ""]
-            with io.open(ruta, "w", encoding="utf-8") as fh:
-                fh.write("\n".join(lineas))
-            creadas += 1
-
-    for i, s in enumerate(datos.get("grammar", []), start=1):
-        titulo = como_texto(s.get("title"))
-        if not titulo:
-            continue
-        crear(os.path.join(ruta_vault, "Gramatica", "%02d-%s.md" % (i, _slug(titulo))), [
-            ("tipo", "gramatica"),
-            ("etiqueta", titulo),
-            ("orden", i),
-        ], como_texto(s.get("content")))
-
-    fonologia = datos.get("phonology", [])
-    if fonologia:
-        ruta = os.path.join(ruta_vault, "Fonologia.md")
-        if os.path.exists(ruta) and not sobrescribir:
-            omitidas += 1
-        else:
-            filas = ["| Grafema | IPA | Romanización | Reemplazo | Notas |",
-                     "|---|---|---|---|---|"]
-            for f in fonologia:
-                filas.append("| %s | %s | %s | %s | %s |" % (
-                    como_texto(f.get("char")), como_texto(f.get("ipa")),
-                    como_texto(f.get("roman")), como_texto(f.get("replacement")),
-                    como_texto(f.get("notes")).replace("|", "\\|")))
-            _escribir_nota(ruta, [("tipo", "fonologia"), ("etiqueta", "Inventario fonológico")],
-                           "\n".join(filas))
-            creadas += 1
-
-    print(verde("Notas creadas: %d" % creadas))
-    if omitidas:
-        print(ambar("Omitidas por ya existir: %d  (usa --sobrescribir para reemplazarlas)" % omitidas))
-    return 0
+            z.writestr(nombre, nuevo if nombre == nombre_xml else datos)
+    return informe, avisos, detalle_comb
 
 
 # --------------------------------------------------------------------------
 # Comandos
 # --------------------------------------------------------------------------
 
-def _resumen(modelo):
-    return "%d lexemas · %d grafemas · %d categorías · %d reglas · %d secciones" % (
-        len(modelo["lexemas"]), len(modelo["fonologia"]), len(modelo["pos"]),
-        len(modelo["reglas"]), len(modelo["gramatica"]))
+def _resumen(paquete):
+    return " · ".join("%d %s" % (len(paquete[k]), k) for k in SECCIONES if paquete[k])
 
 
-def _imprimir_hallazgos(hallazgos):
+def _imprimir(hallazgos):
     errores = [x for x in hallazgos if x.nivel == ERROR]
     avisos = [x for x in hallazgos if x.nivel == AVISO]
-    for x in errores:
-        print(x.linea())
-    for x in avisos:
+    for x in errores + avisos:
         print(x.linea())
     if not hallazgos:
         print(verde("  Sin hallazgos: todo consistente."))
     else:
-        print("")
-        print("  %s errores, %s avisos" % (
+        print("\n  %s errores, %s avisos" % (
             rojo(str(len(errores))) if errores else "0",
             ambar(str(len(avisos))) if avisos else "0"))
     return len(errores)
 
 
+def cmd_extraer(args):
+    try:
+        paquete, avisos = extraer(args.pgd)
+    except Exception as exc:
+        print(rojo("No se pudo leer el .pgd: %s" % exc))
+        print(gris("Corre `inspeccionar` sobre el mismo archivo y comparte la salida."))
+        return 1
+    try:
+        destino = guardar_paquete(paquete, args.salida)
+    except IOError as exc:
+        print(rojo(str(exc)))
+        return 1
+    print(negrita("\nExtraído de %s" % os.path.basename(os.path.expanduser(args.pgd))))
+    print("  " + _resumen(paquete))
+    con_casilla = sum(1 for r in paquete["rules"] if r.get("pgComb"))
+    if paquete["rules"]:
+        print("  %d de %d reglas traen su casilla de declinación" % (con_casilla, len(paquete["rules"])))
+    for a in avisos:
+        print(ambar("  AVISO  ") + a)
+    print("\n" + verde("Guardado en %s" % destino))
+    print(gris("El .pgd no se ha modificado."))
+    return 0
+
+
 def cmd_revisar(args):
-    modelo, hallazgos = cargar_vault(args.vault)
-    hallazgos += revisar(modelo, args.ignorar)
-    print(negrita("\nVault: %s" % args.vault))
-    print(gris("  " + _resumen(modelo)))
-    print("")
-    errores = _imprimir_hallazgos(hallazgos)
+    try:
+        paquete = cargar_paquete(args.paquete)
+    except Exception as exc:
+        print(rojo("No se pudo leer el paquete: %s" % exc))
+        return 1
+    print(negrita("\n" + os.path.basename(os.path.expanduser(args.paquete))))
+    print(gris("  " + _resumen(paquete)) + "\n")
+    errores = _imprimir(revisar(paquete, args.ignorar))
     print("")
     return 1 if errores else 0
 
 
-def cmd_exportar(args):
-    modelo, hallazgos = cargar_vault(args.vault)
-    hallazgos += revisar(modelo, args.ignorar)
-    print(negrita("\nVault: %s" % args.vault))
-    print(gris("  " + _resumen(modelo)))
-    print("")
-    errores = _imprimir_hallazgos(hallazgos)
-    escritos = exportar(modelo, hallazgos, args.salida)
-    print("")
-    print(negrita("Archivos generados en %s:" % args.salida))
-    for ruta in escritos:
-        print("  " + os.path.basename(ruta))
-    print("")
-    print(gris("En PolyGlot: Archivo → Import from File, y mapea las columnas de lexicon.csv."))
-    return 1 if errores and not args.forzar else 0
-
-
-def cmd_vigilar(args):
-    print(negrita("Vigilando %s" % args.vault))
-    print(gris("Ctrl+C para detener.\n"))
-    huella_previa = None
-    try:
-        while True:
-            huella = []
-            for base, dirs, archivos in os.walk(args.vault):
-                dirs[:] = [d for d in dirs if not d.startswith(".")]
-                for nombre in archivos:
-                    if nombre.lower().endswith(".md"):
-                        ruta = os.path.join(base, nombre)
-                        try:
-                            huella.append((ruta, os.path.getmtime(ruta)))
-                        except OSError:
-                            pass
-            huella = sorted(huella)
-            if huella != huella_previa:
-                huella_previa = huella
-                print(gris("[%s] cambio detectado" % time.strftime("%H:%M:%S")))
-                modelo, hallazgos = cargar_vault(args.vault)
-                hallazgos += revisar(modelo, args.ignorar)
-                print(gris("  " + _resumen(modelo)))
-                _imprimir_hallazgos(hallazgos)
-                exportar(modelo, hallazgos, args.salida)
-                print(gris("  exportado a %s\n" % args.salida))
-            time.sleep(args.intervalo)
-    except KeyboardInterrupt:
-        print("\n" + gris("Detenido."))
-        return 0
-
-
 def cmd_probar(args):
-    """Aplica cada regla a las palabras reales de su categoría y muestra el efecto."""
-    modelo, hallazgos = cargar_vault(args.vault)
-    if not modelo["reglas"]:
-        print(ambar("No hay reglas de conjugación en el vault."))
+    try:
+        paquete = cargar_paquete(args.paquete)
+    except Exception as exc:
+        print(rojo("No se pudo leer el paquete: %s" % exc))
+        return 1
+    if not paquete["rules"]:
+        print(ambar("El paquete no trae reglas."))
         return 0
-
-    resumen = {"activa": 0, "inerte": 0, "error": 0, "sin-lexico": 0}
+    resultados = ensayar(paquete, args.muestras)
+    cuenta = {"activa": 0, "inerte": 0, "error": 0, "sin-lexico": 0}
     print(negrita("\nEnsayo de %d regla(s) contra %d lexema(s)\n"
-                  % (len(modelo["reglas"]), len(modelo["lexemas"]))))
-
-    for r in modelo["reglas"]:
-        if r["pos"]:
-            objetivo = r["pos"].strip().lower()
-            candidatos = [l for l in modelo["lexemas"]
-                          if l["pos"].strip().lower() == objetivo]
+                  % (len(paquete["rules"]), len(paquete["lexicon"]))))
+    for x in resultados:
+        cuenta[x["estado"]] += 1
+        if args.solo and x["estado"] != args.solo:
+            continue
+        color = {"activa": verde, "inerte": ambar, "error": rojo, "sin-lexico": gris}[x["estado"]]
+        linea = "  %s  %s" % (color("%-11s" % x["estado"]), x["regla"].get("label"))
+        if x["regla"].get("pos"):
+            linea += gris(" · " + x["regla"]["pos"])
+        if x["regla"].get("claseFiltro"):
+            linea += gris(" [%s = %s]" % (x["regla"]["claseFiltro"], x["regla"].get("valorFiltro")))
+        print(linea)
+        print(gris("      /%s/ → \"%s\"" % (x["regla"].get("find"), x["regla"].get("replace"))))
+        if x["error"]:
+            print("      " + rojo(x["error"]))
+        elif x["estado"] == "inerte":
+            print(gris("      ninguna de las %d palabras de su alcance cambia" % x["candidatos"]))
+        elif x["estado"] == "sin-lexico":
+            print(gris("      su alcance no tiene palabras"))
         else:
-            candidatos = modelo["lexemas"]
-
-        error, muestras, afectadas = None, [], 0
-        for lex in candidatos:
-            ok, salida = aplicar_regla(r, lex["palabra"])
-            if not ok:
-                error = salida
-                break
-            if salida != lex["palabra"]:
-                afectadas += 1
-                if len(muestras) < args.muestras:
-                    muestras.append((lex["palabra"], salida))
-
-        if error:
-            estado, color = "error", rojo
-        elif not candidatos:
-            estado, color = "sin-lexico", gris
-        elif afectadas == 0:
-            estado, color = "inerte", ambar
-        else:
-            estado, color = "activa", verde
-        resumen[estado] += 1
-
-        cabecera = "  %s  %s" % (color("%-11s" % estado), r["etiqueta"])
-        if r["pos"]:
-            cabecera += gris(" · " + r["pos"])
-        print(cabecera)
-        print(gris("      /%s/ → \"%s\"" % (r["buscar"], r["reemplazar"])))
-        if error:
-            print("      " + rojo(error))
-        elif estado == "inerte":
-            print(gris("      ninguna de las %d palabras de su categoría cambia" % len(candidatos)))
-        elif estado == "sin-lexico":
-            print(gris("      su categoría no tiene palabras"))
-        else:
-            for entrada, salida in muestras:
-                print("      %s → %s" % (entrada, salida))
-            print(gris("      afecta a %d de %d" % (afectadas, len(candidatos))))
+            for a, b in x["muestras"]:
+                print("      %s → %s" % (a, b))
+            print(gris("      afecta a %d de %d" % (x["afectadas"], x["candidatos"])))
         print("")
+    print(negrita("Resumen: ") + "%s activas · %s inertes · %s con error · %s sin léxico" % (
+        verde(str(cuenta["activa"])),
+        ambar(str(cuenta["inerte"])) if cuenta["inerte"] else "0",
+        rojo(str(cuenta["error"])) if cuenta["error"] else "0",
+        cuenta["sin-lexico"]))
+    print(gris("Una regla inerte o con error no hace lo que crees.\n"))
+    return 1 if cuenta["error"] else 0
 
-    print(negrita("Resumen: ") +
-          "%s activas · %s inertes · %s con error · %s sin léxico" % (
-              verde(str(resumen["activa"])),
-              ambar(str(resumen["inerte"])) if resumen["inerte"] else "0",
-              rojo(str(resumen["error"])) if resumen["error"] else "0",
-              resumen["sin-lexico"]))
-    print(gris("Una regla inerte o con error no hace lo que crees: revísala antes de aplicarla en PolyGlot.\n"))
-    return 1 if resumen["error"] else 0
+
+def cmd_inyectar(args):
+    try:
+        paquete = cargar_paquete(args.paquete)
+    except Exception as exc:
+        print(rojo("No se pudo leer el paquete: %s" % exc))
+        return 1
+    pedidas = [s.strip() for s in args.secciones.split(",") if s.strip()]
+    if "todo" in pedidas:
+        pedidas = list(SECCIONES)
+    malas = [s for s in pedidas if s not in SECCIONES]
+    if malas:
+        print(rojo("Sección desconocida: %s" % ", ".join(malas)))
+        print(gris("Válidas: %s, todo" % ", ".join(SECCIONES)))
+        return 1
+
+    destino = os.path.expanduser(args.salida)
+    if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
+        base, ext = os.path.splitext(os.path.basename(os.path.expanduser(args.pgd)))
+        destino = os.path.join(destino, base + " (inyectado)" + ext)
+    if os.path.abspath(destino) == os.path.abspath(os.path.expanduser(args.pgd)):
+        print(rojo("La salida no puede ser el archivo de entrada."))
+        return 1
+    if os.path.exists(destino) and not args.sobrescribir:
+        print(rojo("Ya existe %s" % destino))
+        print(gris("Usa --sobrescribir para reemplazarlo."))
+        return 1
+
+    if not args.sin_revisar:
+        hallazgos = [x for x in revisar(paquete) if x.nivel == ERROR]
+        if hallazgos:
+            print(negrita("\nEl paquete tiene %d error(es); no se escribe nada:\n" % len(hallazgos)))
+            for x in hallazgos[:12]:
+                print(x.linea())
+            print(gris("\nCorrígelos, o usa --sin-revisar para escribir de todos modos.\n"))
+            return 1
+
+    try:
+        informe, avisos, combs = inyectar(args.pgd, paquete, destino, pedidas, args.fuente)
+    except Exception as exc:
+        print(rojo("No se pudo escribir: %s" % exc))
+        return 1
+
+    print(negrita("\nEscrito %s" % destino))
+    for k in SECCIONES:
+        if k in pedidas:
+            print("  %s %-11s %d" % (verde("✓") if informe.get(k) else gris("·"), k, informe.get(k, 0)))
+    if combs:
+        print(gris("\n  casillas resueltas por nombre de dimensión:"))
+        for c in combs[:10]:
+            print(gris("    " + c))
+        if len(combs) > 10:
+            print(gris("    … y %d más" % (len(combs) - 10)))
+    for a in avisos:
+        print(ambar("\n  AVISO  ") + a)
+    print("\n" + gris("Cada sección escrita reemplaza la que hubiera. Tu .pgd de origen no se toca."))
+    return 0
 
 
 def cmd_inspeccionar(args):
-    return inspeccionar_pgd(args.pgd, args.salida)
+    try:
+        raiz, nombre_xml, entradas = _abrir(args.pgd)
+    except Exception as exc:
+        print(rojo("No se pudo leer: %s" % exc))
+        return 1
+    lineas = ["# Estructura de %s" % os.path.basename(os.path.expanduser(args.pgd)), ""]
+    if nombre_xml:
+        lineas.append("Contenedor ZIP con %d entrada(s). XML principal: `%s`"
+                      % (len(entradas), nombre_xml))
+    else:
+        lineas.append("XML plano, sin contenedor ZIP.")
+    lineas.append("")
+    conteo, muestras = {}, {}
 
+    def recorrer(nodo, camino):
+        ruta = camino + "/" + nodo.tag
+        conteo[ruta] = conteo.get(ruta, 0) + 1
+        texto = (nodo.text or "").strip()
+        if texto and ruta not in muestras:
+            muestras[ruta] = texto[:60]
+        for hijo in nodo:
+            recorrer(hijo, ruta)
 
-def cmd_importar(args):
-    return importar_cuaderno(args.json, args.vault, args.sobrescribir)
+    recorrer(raiz, "")
+    lineas += ["## Árbol de etiquetas", "", "| Ruta | Veces | Ejemplo |", "|---|---|---|"]
+    for ruta in sorted(conteo):
+        lineas.append("| `%s` | %d | %s |" % (ruta, conteo[ruta],
+                                              muestras.get(ruta, "").replace("|", "\\|")))
+    ejes = declinaciones_de(raiz)
+    if ejes:
+        nombres = {}
+        for nodo in raiz.findall("./partsOfSpeech/partOfSpeechNode"):
+            nombres[_hijo(nodo, "partOfSpeechId")] = _hijo(nodo, "partOfSpeechName")
+        lineas += ["", "## Declinaciones por categoría", ""]
+        for pid, lista in sorted(ejes.items()):
+            lineas.append("**%s**" % nombres.get(pid, "id " + pid))
+            for eje in lista:
+                dims = ", ".join("%s (%s)" % (d["nombre"], d["id"]) for d in eje["dimensiones"])
+                lineas.append("- %s: %s" % (eje["nombre"] or "eje " + eje["id"], dims))
+            lineas.append("")
+    reporte = "\n".join(lineas)
+    print(reporte)
+    if args.salida:
+        destino = os.path.expanduser(args.salida)
+        with io.open(destino, "w", encoding="utf-8") as fh:
+            fh.write(reporte)
+        print(verde("\nGuardado en %s" % destino))
+    return 0
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(
-        prog="tabure",
-        description="Puente entre un vault de Obsidian y PolyGlot para tabure'shi.")
+        prog="tabure", description="Puente entre el cuaderno de tabure'shi y PolyGlot.")
     sub = p.add_subparsers(dest="comando")
 
-    def con_vault(sp):
-        sp.add_argument("--vault", required=True, help="Carpeta del vault de Obsidian")
-        sp.add_argument("--ignorar", default=" -",
-                        help="Caracteres que no se validan contra la fonología (por defecto: espacio y guion)")
-
-    sp = sub.add_parser("revisar", help="Valida el vault sin escribir nada")
-    con_vault(sp)
-    sp.set_defaults(func=cmd_revisar)
-
-    sp = sub.add_parser("exportar", help="Valida y genera los archivos para PolyGlot")
-    con_vault(sp)
-    sp.add_argument("--salida", required=True, help="Carpeta donde escribir los archivos")
-    sp.add_argument("--forzar", action="store_true", help="Salir con código 0 aunque haya errores")
-    sp.set_defaults(func=cmd_exportar)
-
-    sp = sub.add_parser("vigilar", help="Revisa y exporta automáticamente al detectar cambios")
-    con_vault(sp)
-    sp.add_argument("--salida", required=True, help="Carpeta donde escribir los archivos")
-    sp.add_argument("--intervalo", type=float, default=2.0, help="Segundos entre revisiones")
-    sp.set_defaults(func=cmd_vigilar)
-
-    sp = sub.add_parser("probar", help="Aplica cada regla al léxico real y muestra qué produce")
-    con_vault(sp)
-    sp.add_argument("--muestras", type=int, default=4, help="Ejemplos a mostrar por regla")
-    sp.set_defaults(func=cmd_probar)
-
-    sp = sub.add_parser("extraer", help="Saca el contenido de un .pgd al formato del cuaderno (solo lectura)")
-    sp.add_argument("--pgd", required=True, help="Ruta al archivo .pgd de PolyGlot")
-    sp.add_argument("--salida", default="paquete.json", help="Archivo JSON a escribir")
+    sp = sub.add_parser("extraer", help="Saca el contenido de un .pgd al paquete JSON")
+    sp.add_argument("--pgd", required=True)
+    sp.add_argument("--salida", default="paquete.json")
     sp.set_defaults(func=cmd_extraer)
 
-    sp = sub.add_parser("inyectar",
-                        help="Escribe las secciones elegidas de un paquete en una COPIA del .pgd")
-    sp.add_argument("--pgd", required=True, help="Tu archivo .pgd (no se modifica)")
-    sp.add_argument("--paquete", required=True, help="JSON del cuaderno o de `extraer`")
-    sp.add_argument("--salida", required=True, help="Archivo o carpeta donde escribir el .pgd nuevo")
+    sp = sub.add_parser("revisar", help="Valida el paquete. No escribe nada")
+    sp.add_argument("--paquete", required=True)
+    sp.add_argument("--ignorar", default=IGNORAR_POR_DEFECTO,
+                    help="Caracteres que no se validan contra la fonología")
+    sp.set_defaults(func=cmd_revisar)
+
+    sp = sub.add_parser("probar", help="Aplica cada regla al léxico real y muestra qué produce")
+    sp.add_argument("--paquete", required=True)
+    sp.add_argument("--muestras", type=int, default=4)
+    sp.add_argument("--solo", choices=["activa", "inerte", "error", "sin-lexico"],
+                    help="Mostrar solo las reglas en ese estado")
+    sp.set_defaults(func=cmd_probar)
+
+    sp = sub.add_parser("inyectar", help="Escribe el paquete en una COPIA del .pgd")
+    sp.add_argument("--pgd", required=True)
+    sp.add_argument("--paquete", required=True)
+    sp.add_argument("--salida", required=True)
     sp.add_argument("--secciones", default="todo",
-                    help="Coma-separadas: %s, o «todo»" % ", ".join(SECCIONES_INYECTABLES))
-    sp.add_argument("--fuente", default="Charis SIL", help="Fuente del texto en PolyGlot")
-    sp.add_argument("--sobrescribir", action="store_true", help="Permitir pisar la salida si ya existe")
-    sp.set_defaults(func=cmd_inyectar_todo)
+                    help="Coma-separadas: %s, o «todo»" % ", ".join(SECCIONES))
+    sp.add_argument("--fuente", default="Charis SIL")
+    sp.add_argument("--sobrescribir", action="store_true")
+    sp.add_argument("--sin-revisar", action="store_true",
+                    help="Escribir aunque el paquete tenga errores")
+    sp.set_defaults(func=cmd_inyectar)
 
-    sp = sub.add_parser("inyectar-gramatica",
-                        help="Alias de `inyectar --secciones grammar`")
-    sp.add_argument("--pgd", required=True, help="Tu archivo .pgd (no se modifica)")
-    sp.add_argument("--paquete", required=True, help="JSON con la clave \"grammar\"")
-    sp.add_argument("--salida", required=True, help="Archivo o carpeta donde escribir el .pgd nuevo")
-    sp.add_argument("--fuente", default="Charis SIL", help="Fuente del texto en PolyGlot")
-    sp.add_argument("--sobrescribir", action="store_true", help="Permitir pisar la salida si ya existe")
-    sp.set_defaults(func=cmd_inyectar, secciones="grammar")
-
-    sp = sub.add_parser("inspeccionar", help="Describe la estructura real de un archivo .pgd")
-    sp.add_argument("--pgd", required=True, help="Ruta al archivo .pgd de PolyGlot")
-    sp.add_argument("--salida", help="Guardar el informe en este archivo")
+    sp = sub.add_parser("inspeccionar", help="Describe la estructura interna de un .pgd")
+    sp.add_argument("--pgd", required=True)
+    sp.add_argument("--salida")
     sp.set_defaults(func=cmd_inspeccionar)
 
-    sp = sub.add_parser("importar-cuaderno", help="Crea notas del vault desde el respaldo JSON del cuaderno web")
-    sp.add_argument("json", help="Archivo JSON exportado desde el cuaderno")
-    sp.add_argument("--vault", required=True, help="Carpeta del vault de Obsidian")
-    sp.add_argument("--sobrescribir", action="store_true", help="Reemplazar notas que ya existan")
-    sp.set_defaults(func=cmd_importar)
-
     args = p.parse_args(argv)
-
-    # El shell expande ~ solo si va fuera de comillas; hacerlo aquí también
-    # evita que una ruta entrecomillada falle con un "no existe el archivo".
-    for campo in ("vault", "salida", "pgd", "json"):
-        valor = getattr(args, campo, None)
-        if isinstance(valor, str) and valor.startswith("~"):
-            setattr(args, campo, os.path.expanduser(valor))
-
+    for campo in ("pgd", "paquete", "salida"):
+        v = getattr(args, campo, None)
+        if isinstance(v, str) and v.startswith("~"):
+            setattr(args, campo, os.path.expanduser(v))
     if not getattr(args, "func", None):
         p.print_help()
         return 0
