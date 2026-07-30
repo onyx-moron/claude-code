@@ -67,8 +67,26 @@ class Hallazgo(object):
 SECCIONES = ["phonology", "pos", "classes", "lexicon", "rules", "grammar"]
 
 
+def resolver_paquete(ruta):
+    """Acepta un archivo o una carpeta.
+
+    Si es carpeta, elige el paquete*.json más reciente que contenga. Eso permite
+    apuntar a Descargas sin preocuparse de que el navegador haya guardado el
+    archivo como paquete-1.json en la segunda descarga.
+    """
+    p = os.path.expanduser(ruta)
+    if os.path.isdir(p):
+        candidatos = [os.path.join(p, n) for n in os.listdir(p)
+                      if n.startswith("paquete") and n.endswith(".json")
+                      and not n.endswith("-anterior.json")]
+        if not candidatos:
+            raise IOError("no hay ningún paquete*.json en %s" % p)
+        return max(candidatos, key=os.path.getmtime)
+    return p
+
+
 def cargar_paquete(ruta):
-    with io.open(os.path.expanduser(ruta), "r", encoding="utf-8") as fh:
+    with io.open(resolver_paquete(ruta), "r", encoding="utf-8") as fh:
         datos = json.load(fh)
     if not isinstance(datos, dict):
         raise ValueError("el JSON no es un objeto con las claves del paquete")
@@ -79,16 +97,29 @@ def cargar_paquete(ruta):
     return datos
 
 
+def ruta_anterior(destino):
+    raiz, ext = os.path.splitext(destino)
+    return raiz + "-anterior" + ext
+
+
 def guardar_paquete(datos, ruta):
+    """Escribe el paquete rotando el anterior: solo quedan dos archivos, el de
+    trabajo y su versión previa, para poder volver atrás si algo sale mal."""
     destino = os.path.expanduser(ruta)
     if os.path.isdir(destino) or destino.endswith(("/", os.sep)):
         destino = os.path.join(destino, "paquete.json")
     carpeta = os.path.dirname(os.path.abspath(destino))
     if not os.path.isdir(carpeta):
         raise IOError("no existe la carpeta %s" % carpeta)
+    rotado = None
+    if os.path.exists(destino):
+        rotado = ruta_anterior(destino)
+        if os.path.exists(rotado):
+            os.remove(rotado)
+        os.rename(destino, rotado)
     with io.open(destino, "w", encoding="utf-8") as fh:
         fh.write(json.dumps(datos, ensure_ascii=False, indent=1))
-    return destino
+    return destino, rotado
 
 
 # --------------------------------------------------------------------------
@@ -823,7 +854,7 @@ def cmd_extraer(args):
         print(gris("Corre `inspeccionar` sobre el mismo archivo y comparte la salida."))
         return 1
     try:
-        destino = guardar_paquete(paquete, args.salida)
+        destino, rotado = guardar_paquete(paquete, args.salida)
     except IOError as exc:
         print(rojo(str(exc)))
         return 1
@@ -835,6 +866,8 @@ def cmd_extraer(args):
     for a in avisos:
         print(ambar("  AVISO  ") + a)
     print("\n" + verde("Guardado en %s" % destino))
+    if rotado:
+        print(gris("La versión anterior quedó en %s" % os.path.basename(rotado)))
     print(gris("El .pgd no se ha modificado."))
     return 0
 
@@ -955,6 +988,45 @@ def cmd_inyectar(args):
     return 0
 
 
+def cmd_ordenar(args):
+    """Deja en la carpeta solo el .pgd, el paquete y su versión anterior."""
+    carpeta = os.path.expanduser(args.carpeta)
+    if not os.path.isdir(carpeta):
+        print(rojo("No existe la carpeta %s" % carpeta))
+        return 1
+
+    conservar, sobrantes = [], []
+    for nombre in sorted(os.listdir(carpeta)):
+        ruta = os.path.join(carpeta, nombre)
+        if nombre.startswith(".") or os.path.isdir(ruta):
+            continue
+        # Se conserva el diccionario de trabajo, el paquete y su respaldo.
+        if nombre.endswith(".pgd") and "(" not in nombre:
+            conservar.append((nombre, "diccionario de trabajo"))
+        elif nombre in ("paquete.json", "paquete-anterior.json"):
+            conservar.append((nombre, "paquete" if nombre == "paquete.json" else "respaldo"))
+        else:
+            sobrantes.append(nombre)
+
+    print(negrita("\n%s" % carpeta))
+    for nombre, papel in conservar:
+        print("  %s %-46s %s" % (verde("conservar"), nombre[:46], gris(papel)))
+    if not sobrantes:
+        print(gris("\n  No hay nada de sobra.\n"))
+        return 0
+    for nombre in sobrantes:
+        tam = os.path.getsize(os.path.join(carpeta, nombre))
+        print("  %s %-46s %s" % (ambar("sobrante "), nombre[:46], gris("%.0f KB" % (tam / 1024))))
+
+    if not args.borrar:
+        print(gris("\n  Nada se ha borrado. Añade --borrar para eliminar los sobrantes.\n"))
+        return 0
+    for nombre in sobrantes:
+        os.remove(os.path.join(carpeta, nombre))
+    print("\n" + verde("%d archivo(s) eliminados." % len(sobrantes)) + "\n")
+    return 0
+
+
 def cmd_inspeccionar(args):
     try:
         raiz, nombre_xml, entradas = _abrir(args.pgd)
@@ -1017,7 +1089,8 @@ def main(argv=None):
     sp.set_defaults(func=cmd_extraer)
 
     sp = sub.add_parser("revisar", help="Valida el paquete. No escribe nada")
-    sp.add_argument("--paquete", required=True)
+    sp.add_argument("--paquete", required=True,
+                    help="Archivo, o carpeta de la que se toma el paquete*.json más reciente")
     sp.add_argument("--ignorar", default=IGNORAR_POR_DEFECTO,
                     help="Caracteres que no se validan contra la fonología")
     sp.set_defaults(func=cmd_revisar)
@@ -1041,13 +1114,19 @@ def main(argv=None):
                     help="Escribir aunque el paquete tenga errores")
     sp.set_defaults(func=cmd_inyectar)
 
+    sp = sub.add_parser("ordenar",
+                        help="Lista lo que sobra en la carpeta de trabajo y opcionalmente lo borra")
+    sp.add_argument("--carpeta", required=True)
+    sp.add_argument("--borrar", action="store_true", help="Eliminar de verdad los sobrantes")
+    sp.set_defaults(func=cmd_ordenar)
+
     sp = sub.add_parser("inspeccionar", help="Describe la estructura interna de un .pgd")
     sp.add_argument("--pgd", required=True)
     sp.add_argument("--salida")
     sp.set_defaults(func=cmd_inspeccionar)
 
     args = p.parse_args(argv)
-    for campo in ("pgd", "paquete", "salida"):
+    for campo in ("pgd", "paquete", "salida", "carpeta"):
         v = getattr(args, campo, None)
         if isinstance(v, str) and v.startswith("~"):
             setattr(args, campo, os.path.expanduser(v))

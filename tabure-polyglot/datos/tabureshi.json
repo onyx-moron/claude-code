@@ -1754,9 +1754,9 @@
      "expected": "hiros"
     }
    ],
+   "dimension": "Acusativo",
    "claseFiltro": "tema",
-   "valorFiltro": "vocálico",
-   "dimension": "Acusativo"
+   "valorFiltro": "vocálico"
   },
   {
    "label": "Acusativo · tema consonántico",
@@ -1774,9 +1774,9 @@
      "expected": "demianas"
     }
    ],
+   "dimension": "Acusativo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Acusativo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Dativo · tema vocálico",
@@ -1794,9 +1794,9 @@
      "expected": "hiror̂"
     }
    ],
+   "dimension": "Dativo",
    "claseFiltro": "tema",
-   "valorFiltro": "vocálico",
-   "dimension": "Dativo"
+   "valorFiltro": "vocálico"
   },
   {
    "label": "Dativo · tema consonántico",
@@ -1814,9 +1814,9 @@
      "expected": "demianar̂"
     }
    ],
+   "dimension": "Dativo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Dativo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Oblicuo · tema vocálico",
@@ -1834,9 +1834,9 @@
      "expected": "hiron"
     }
    ],
+   "dimension": "Oblicuo",
    "claseFiltro": "tema",
-   "valorFiltro": "vocálico",
-   "dimension": "Oblicuo"
+   "valorFiltro": "vocálico"
   },
   {
    "label": "Oblicuo · tema consonántico",
@@ -1854,9 +1854,9 @@
      "expected": "demianan"
     }
    ],
+   "dimension": "Oblicuo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Oblicuo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Genitivo · tema vocálico",
@@ -1874,9 +1874,9 @@
      "expected": "hirol"
     }
    ],
+   "dimension": "Genitivo",
    "claseFiltro": "tema",
-   "valorFiltro": "vocálico",
-   "dimension": "Genitivo"
+   "valorFiltro": "vocálico"
   },
   {
    "label": "Genitivo · tema consonántico",
@@ -1894,9 +1894,9 @@
      "expected": "demianal"
     }
    ],
+   "dimension": "Genitivo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Genitivo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Vocativo · tema vocálico",
@@ -1914,9 +1914,9 @@
      "expected": "hirooh"
     }
    ],
+   "dimension": "Vocativo",
    "claseFiltro": "tema",
-   "valorFiltro": "vocálico",
-   "dimension": "Vocativo"
+   "valorFiltro": "vocálico"
   },
   {
    "label": "Vocativo · tema consonántico",
@@ -1934,9 +1934,9 @@
      "expected": "demianah"
     }
    ],
+   "dimension": "Vocativo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Vocativo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Glotónimo",
@@ -2858,9 +2858,9 @@
      "expected": "helanas"
     }
    ],
+   "dimension": "Acusativo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Acusativo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Dativo",
@@ -2878,9 +2878,9 @@
      "expected": "helanar̂"
     }
    ],
+   "dimension": "Dativo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Dativo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Oblicuo",
@@ -2898,9 +2898,9 @@
      "expected": "helanan"
     }
    ],
+   "dimension": "Oblicuo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Oblicuo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Genitivo",
@@ -2918,9 +2918,9 @@
      "expected": "helanal"
     }
    ],
+   "dimension": "Genitivo",
    "claseFiltro": "tema",
-   "valorFiltro": "consonántico",
-   "dimension": "Genitivo"
+   "valorFiltro": "consonántico"
   },
   {
    "label": "Ordinales",

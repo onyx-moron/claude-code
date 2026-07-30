@@ -23,6 +23,7 @@ Requiere Python 3.8 o superior y nada más. Verificado contra PolyGlot 3.6.1.
 | `revisar` | Valida el paquete y lista errores y avisos. No escribe. |
 | `probar` | Aplica cada regla al léxico real y muestra qué produce. |
 | `inyectar` | Escribe el paquete en una **copia** del `.pgd`. |
+| `ordenar` | Lista lo que sobra en la carpeta de trabajo y opcionalmente lo borra. |
 | `inspeccionar` | Describe la estructura interna de un `.pgd`. Solo lectura. |
 
 ### extraer
@@ -125,6 +126,33 @@ reemplazar: $1$2$1s          ← arlan → arlanas
 que espera Python para que una regla dé el mismo resultado aquí que en la aplicación.
 
 ---
+
+## Dos archivos, no más
+
+La carpeta de trabajo se queda con lo mínimo:
+
+| Archivo | Papel |
+|---|---|
+| `Tabure'shi … .pgd` | el diccionario |
+| `paquete.json` | los datos, reescritos en cada exportación |
+| `paquete-anterior.json` | la versión previa, para volver atrás |
+
+`extraer` rota el respaldo por su cuenta: antes de escribir, mueve el paquete actual
+a `-anterior`. Y `--paquete` acepta una carpeta, tomando el `paquete*.json` más
+reciente que encuentre — así apuntar a Descargas funciona aunque el navegador haya
+guardado la segunda descarga como `paquete-1.json`.
+
+```bash
+# ver qué sobra, sin borrar nada
+python3 tabure.py ordenar --carpeta ~/Personal/Tabure
+
+# borrarlo
+python3 tabure.py ordenar --carpeta ~/Personal/Tabure --borrar
+```
+
+Conserva el `.pgd` sin paréntesis en el nombre, el paquete y su respaldo; considera
+sobrante todo lo demás, incluidos los `.pgd` marcados `(inyectado)` o
+`(con gramática)` de ejecuciones anteriores.
 
 ## datos/tabureshi.json
 
