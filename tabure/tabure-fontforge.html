@@ -146,6 +146,8 @@
   .lienzo-caja .tirador { cursor: grab; }
   .lienzo-caja .tirador.salida { fill: none; stroke: #B3541E; stroke-width: 11; pointer-events: stroke; }
   .lienzo-caja .tirador.entrada { fill: #FFFFFF; stroke: #2F6B45; stroke-width: 5; }
+  .lienzo-caja .tirador.ancla-arriba { fill: rgba(179,84,30,.16); stroke: #B3541E; stroke-width: 5; }
+  .lienzo-caja .tirador.ancla-abajo { fill: rgba(47,107,69,.16); stroke: #2F6B45; stroke-width: 5; }
   .lienzo-caja .tirador:active { cursor: grabbing; }
   .lienzo-caja text.rotulo { font-family: var(--mono); fill: var(--prueba-suave); }
   .mandos { display: flex; flex-direction: column; gap: 12px; background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); padding: 14px 15px; box-shadow: var(--sombra); }
@@ -196,7 +198,7 @@
   @media (max-width: 940px) { .ficha { position: static; } }
   .ficha .cuerpo { padding: 15px; display: flex; flex-direction: column; gap: 16px; max-height: 720px; overflow-y: auto; }
   .retrato { display: flex; align-items: center; gap: 18px; background: var(--prueba-fondo); color: var(--prueba-tinta); border: 1px solid var(--linea); border-radius: var(--r); padding: 14px 18px; }
-  .retrato svg { display: block; width: 96px; height: 96px; flex: none; }
+  .retrato svg { display: block; width: 128px; height: 128px; flex: none; }
   .retrato svg path { fill: var(--prueba-tinta); }
   .retrato .rom { font-family: var(--serif); font-size: 34px; line-height: 1; }
   .retrato .apunte { color: var(--prueba-suave); }
@@ -254,6 +256,7 @@
       <button class="btn silencio" id="btn-json">Descargar respaldo</button>
       <button class="btn silencio" id="btn-json-importar">Importar respaldo</button>
       <input type="file" id="file-json" accept="application/json" hidden>
+      <span class="apunte" id="cambios-sin-respaldar" style="align-self:center"></span>
     </div>
   </header>
 
@@ -278,6 +281,7 @@
         <div class="puntos" id="puntos"></div>
         <div class="fila">
           <button class="btn" id="btn-copiar">Copiar en šitakü</button>
+          <button class="btn" id="btn-svg">Descargar SVG</button>
           <span class="apunte" id="nota-conv"></span>
         </div>
       </div>
@@ -328,7 +332,7 @@
         <label class="marcar"><input type="checkbox" id="ver-pauta" checked> Ver pauta diagonal</label>
         <div class="medida"><span>Eje de la letra</span><b id="eje-a">—</b></div>
         <div class="medida solo-union"><span>Eje de la segunda</span><b id="eje-b">—</b></div>
-        <div class="medida"><span id="rot-puntos">Puntos</span><b id="salto">—</b></div>
+        <div class="medida"><span id="rot-puntos">Puntos</span><b id="salto">—</b><button class="btn" id="btn-copiar-punto" style="padding:2px 8px;font-size:11.5px">Copiar</button></div>
         <div class="leyenda-union solo-union">
           <span><i style="border-color:#B3541E"></i>salida (anillo)</span>
           <span><i style="border-color:#2F6B45;background:#fff"></i>entrada (disco)</span>
@@ -351,6 +355,17 @@
           <button class="btn primaria" id="btn-fea">Exportar .fea</button>
           <button class="btn" id="btn-metricas">Exportar métricas .py</button>
         </div>
+        <div class="fila">
+          <button class="btn" id="btn-deshacer" disabled>Deshacer</button>
+        </div>
+        <div class="solo-anclas" style="border-top:1px solid var(--linea);padding-top:11px;display:flex;flex-direction:column;gap:8px">
+          <span class="et" style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-f)">Mover todas las bases</span>
+          <div class="dupla">
+            <label class="campo-num"><span>Δ arriba (Y)</span><input type="number" id="lote-arriba" value="0"></label>
+            <label class="campo-num"><span>Δ abajo (Y)</span><input type="number" id="lote-abajo" value="0"></label>
+          </div>
+          <button class="btn" id="btn-lote">Aplicar a las 35 bases</button>
+        </div>
       </div>
     </div>
   </section>
@@ -361,7 +376,9 @@
         <h2 class="tit">Casillero</h2>
         <span class="apunte" id="conteo"></span>
       </header>
-      <div class="filtros">
+      <div class="filtros" style="grid-template-columns:1fr auto auto">
+        <input type="text" id="f-texto" placeholder="Buscar por letra o U+código…" aria-label="Buscar signo">
+        <button class="btn" id="btn-pendiente">Siguiente pendiente</button>
         <select id="f-estado" aria-label="Filtrar">
           <option value="">Todo el inventario</option>
           <option value="pend">Con algo pendiente</option>
@@ -370,7 +387,7 @@
           <option value="ausente">Ausentes del archivo</option>
           <option value="listo">Terminados</option>
         </select>
-        <label class="marcar"><input type="checkbox" id="f-nota"> Solo con nota</label>
+        <label class="marcar" style="grid-column:1 / -1"><input type="checkbox" id="f-nota"> Solo con nota</label>
       </div>
       <div class="cuerpo-casillero" id="rejillas"></div>
     </section>
@@ -519,7 +536,7 @@
   var CLAVE = "tabure.shitaku.v2";
   var manual = cargar();
   var seleccion = "E000";
-  var filtros = { estado: "", nota: false };
+  var filtros = { estado: "", nota: false, texto: "" };
 
   function cargar() {
     try {
@@ -597,6 +614,12 @@
     });
   }
   function chr(cp) { return String.fromCodePoint(parseInt(cp, 16)); }
+  /* Saneo de un campo numérico: nunca deja pasar NaN ni un valor fuera de rango. */
+  function sano(v, min, max) {
+    var n = parseFloat(v);
+    if (!isFinite(n)) return null;
+    return Math.round(Math.max(min, Math.min(max, n)));
+  }
 
   var tAviso;
   function avisar(m) {
@@ -740,6 +763,13 @@
   function pasa(g) {
     var m = man(g.cp);
     if (filtros.nota && !(m.nota || "").trim()) return false;
+    if (filtros.texto) {
+      var q = filtros.texto.trim().toLowerCase().replace(/^u\+/, "");
+      var enRom = g.rom.toLowerCase().indexOf(filtros.texto.trim().toLowerCase()) > -1;
+      var enCod = g.cp.toLowerCase().indexOf(q) > -1;
+      var enTitulo = g.titulo.toLowerCase().indexOf(filtros.texto.trim().toLowerCase()) > -1;
+      if (!enRom && !enCod && !enTitulo) return false;
+    }
     switch (filtros.estado) {
       case "pend": return !!etapaActual(g);
       case "sinancla": return sinAnclas(g.cp);
@@ -859,7 +889,7 @@
     document.getElementById("ficha").innerHTML =
       '<header><h2 class="tit">' + esc(g.titulo) + '</h2><span class="apunte">U+' + g.cp + " · " + esc(e ? e.nombre : "terminado") + "</span></header>" +
       '<div class="cuerpo">' +
-        '<div class="retrato">' + (trazo(g) ? svgGlifo(g, 96) : "") + '<div><div class="rom">' + esc(g.rom) + (g.girada ? " ↻" : "") + "</div>" +
+        '<div class="retrato" id="retrato-glifo">' + (trazo(g) ? svgGlifo(g, 128, true) : "") + '<div><div class="rom">' + esc(g.rom) + (g.girada ? " ↻" : "") + "</div>" +
           '<div class="apunte">' + esc(grupo ? "grupo " + grupo.n + " · " + grupo.nombre + " · vocal " + grupo.vocal : (g.tipo === "vocal" ? "vocal diacrítica" : g.tipo)) + "</div></div></div>" +
         '<div class="datos">' + datosHtml + "</div>" +
         '<label class="campo" style="display:flex;flex-direction:column;gap:4px"><span class="et" style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-f)">Nota de dibujo</span>' +
@@ -873,25 +903,55 @@
     var ta = document.querySelector("#ficha [data-nota]");
     ta.addEventListener("input", function () { m.nota = ta.value; guardar(); pintarCasillero(); });
 
+    var antesMargen = {};
     ficha.querySelectorAll("[data-m]").forEach(function (inp) {
+      var campo = inp.getAttribute("data-m");
+      if (campo === "w") return;
+      inp.addEventListener("focus", function () {
+        antesMargen[campo] = margenes[g.cp] ? margenes[g.cp][campo] : undefined;
+        antesMargen[campo] = antesMargen[campo] == null ? null : antesMargen[campo];
+      });
       inp.addEventListener("input", function () {
-        if (inp.getAttribute("data-m") === "w") return;
-        fijarMargen(g.cp, inp.getAttribute("data-m"), inp.value === "" ? null : Math.round(+inp.value));
+        var v = inp.value === "" ? null : sano(inp.value, -800, 1500);
+        if (inp.value !== "" && v == null) return;   // valor no numérico: no se aplica todavía
+        fijarMargen(g.cp, campo, v);
         guardarMargenes();
-        pintarFicha();
+        inp.classList.toggle("tocado", v != null);
+        // actualización ligera: sin reconstruir el panel, para no robar el foco al escribir
+        var mm = margenesDe(g.cp);
+        var wInput = ficha.querySelector('[data-m="w"]');
+        if (wInput) wInput.value = mm.w;
+        var retratoDiv = document.getElementById("retrato-glifo");
+        if (retratoDiv && trazo(g)) { var viejoSvg = retratoDiv.querySelector("svg"); if (viejoSvg) viejoSvg.outerHTML = svgGlifo(g, 128, true); }
+        pintarRitmo(g);
         pintarConversor();
+        pintarCasillero();
+      });
+      inp.addEventListener("blur", function () {
+        var actual = margenes[g.cp] ? margenes[g.cp][campo] : null;
+        actual = actual == null ? null : actual;
+        if (JSON.stringify(actual) !== JSON.stringify(antesMargen[campo])) {
+          registrar({ tipo: "margen", cp: g.cp, campo: campo, anterior: antesMargen[campo] });
+        }
       });
     });
     var btnNat = ficha.querySelector('[data-margen-accion="natural"]');
     if (btnNat) btnNat.addEventListener("click", function () {
-      delete margenes[g.cp]; guardarMargenes(); pintarFicha(); pintarConversor();
+      var ov = margenes[g.cp];
+      if (ov && (ov.lsb != null || ov.rsb != null)) {
+        registrar({ tipo: "margen", cp: g.cp, campo: "lsb", anterior: ov.lsb != null ? ov.lsb : null });
+        registrar({ tipo: "margen", cp: g.cp, campo: "rsb", anterior: ov.rsb != null ? ov.rsb : null });
+      }
+      delete margenes[g.cp]; guardarMargenes(); pintarFicha(); pintarConversor(); pintarCasillero();
       avisar("Márgenes de " + g.rom + " de vuelta a lo natural del archivo");
     });
     var btnIg = ficha.querySelector('[data-margen-accion="igualar"]');
     if (btnIg) btnIg.addEventListener("click", function () {
       var mm = margenesDe(g.cp), prom = Math.round((mm.lsb + mm.rsb) / 2);
+      registrar({ tipo: "margen", cp: g.cp, campo: "lsb", anterior: (margenes[g.cp] && margenes[g.cp].lsb != null) ? margenes[g.cp].lsb : null });
+      registrar({ tipo: "margen", cp: g.cp, campo: "rsb", anterior: (margenes[g.cp] && margenes[g.cp].rsb != null) ? margenes[g.cp].rsb : null });
       fijarMargen(g.cp, "lsb", prom); fijarMargen(g.cp, "rsb", prom);
-      guardarMargenes(); pintarFicha(); pintarConversor();
+      guardarMargenes(); pintarFicha(); pintarConversor(); pintarCasillero();
     });
     pintarRitmo(g);
     document.querySelectorAll("#ficha [data-tarea]").forEach(function (b) {
@@ -1190,6 +1250,22 @@
   });
   document.getElementById("f-estado").addEventListener("change", function (e) { filtros.estado = e.target.value; pintarCasillero(); });
   document.getElementById("f-nota").addEventListener("change", function (e) { filtros.nota = e.target.checked; pintarCasillero(); });
+  document.getElementById("f-texto").addEventListener("input", function (e) { filtros.texto = e.target.value; pintarCasillero(); });
+  document.getElementById("btn-pendiente").addEventListener("click", function () {
+    var i = INV.findIndex(function (g) { return g.cp === seleccion; });
+    for (var k = 1; k <= INV.length; k++) {
+      var g = INV[(i + k) % INV.length];
+      if (etapaActual(g)) {
+        seleccion = g.cp;
+        filtros = { estado: "", nota: false, texto: "" };
+        document.getElementById("f-estado").value = ""; document.getElementById("f-nota").checked = false; document.getElementById("f-texto").value = "";
+        pintarCasillero(); pintarFicha();
+        document.getElementById("ficha").scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+    avisar("No queda ningún glifo con tareas pendientes");
+  });
 
   /* ---------- prompt ---------- */
   var PROMPT = [
@@ -1213,7 +1289,7 @@
     "- Una decena de consonantes se sale de su ancho declarado; el espaciado está sin trabajar.",
     "- Em de 1200 unidades (Ascent 800 / Descent 400).",
     "",
-    "Herramienta de control que uso: una app de una sola página (HTML autocontenido, sin dependencias externas, localStorage con las claves \"tabure.shitaku.v2\", \"tabure.union.v1\", \"tabure.anclas.v1\" y \"tabure.margenes.v1\") que lleva incrustados los contornos reales de la fuente y por tanto dibuja los glifos sin necesidad de cargarla. Lee el .sfd en el navegador y audita anclas, anchos y lookups; lleva una lista de verificación por glifo en seis etapas; compone romanización a šitakü con la regla del portador nulo o con la vocal preposada; y tiene un editor de pauta con dos modos — anclas (arrastre o coordenadas X/Y numéricas de la vocal derecha y la preposada) y unión (entrada/salida entre letras) — sobre una grilla caligráfica diagonal. La ficha de cada glifo tiene margen izquierdo y derecho editables con una tira de ritmo que repite la letra tres veces para ver el espaciado. Exporta un .fea con mark+curs y un script de Python de FontForge que aplica los márgenes vía left_side_bearing/right_side_bearing.",
+    "Herramienta de control que uso: una app de una sola página (HTML autocontenido, sin dependencias externas, localStorage con las claves \"tabure.shitaku.v2\", \"tabure.union.v1\", \"tabure.anclas.v1\" y \"tabure.margenes.v1\") que lleva incrustados los contornos reales de la fuente y por tanto dibuja los glifos sin necesidad de cargarla. Lee el .sfd en el navegador y audita anclas, anchos y lookups; lleva una lista de verificación por glifo en seis etapas, con buscador y salto al siguiente pendiente; compone romanización a šitakü con la regla del portador nulo o con la vocal preposada, con exportación a SVG; y tiene un editor de pauta con dos modos — anclas (arrastre, coordenadas X/Y numéricas, nudge por flechas del teclado, y ajuste por lote de todas las bases a la vez) y unión (entrada/salida entre letras) — sobre una grilla caligráfica diagonal. La ficha de cada glifo tiene margen izquierdo y derecho editables con guías visibles sobre el propio glifo y una tira de ritmo que lo repite tres veces. Todo edición de ancla o margen tiene deshacer, y el respaldo (descargar/importar) cubre las cuatro tablas de datos juntas, con un contador de cambios sin respaldar. Exporta un .fea con mark+curs y un script de Python de FontForge que aplica los márgenes vía left_side_bearing/right_side_bearing.",
     "",
     "Cómo quiero que trabajes:",
     "- Responde en español, con pasos concretos de FontForge nombrando el menú exacto (por ejemplo Element ▸ Font Info ▸ Lookups) y el atajo cuando exista.",
@@ -1224,6 +1300,19 @@
     "",
     "Primera tarea: [por ejemplo — plan para colocar las 68 anclas base con un script; decidir si la vocal girada es glifo aparte o sustitución contextual; montar la lookup mark-to-base y probarla; o resolver el espaciado de las consonantes que desbordan]."
   ].join("\n");
+  document.getElementById("btn-svg").addEventListener("click", function () {
+    var svg = document.querySelector("#salida svg");
+    if (!svg) { avisar("No hay nada que exportar todavía."); return; }
+    var vb = svg.getAttribute("viewBox");
+    var body = svg.innerHTML.replace(/<path/g, '<path fill="#14161A" stroke="none"');
+    var completo = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + vb + '">' +
+      '<rect x="' + vb.split(" ")[0] + '" y="' + vb.split(" ")[1] + '" width="' + vb.split(" ")[2] + '" height="' + vb.split(" ")[3] + '" fill="#ffffff"/>' +
+      body + "</svg>";
+    descargar("tabure-shitaku.svg", completo, "image/svg+xml;charset=utf-8");
+    avisar("SVG descargado");
+  });
+
   document.getElementById("texto-prompt").textContent = PROMPT;
   document.getElementById("btn-prompt").addEventListener("click", function () { copiar(PROMPT, "Texto copiado"); });
 
@@ -1252,16 +1341,72 @@
     cacheCaja[cp] = c;
     return c;
   }
-  function svgGlifo(g, alto) {
+  function svgGlifo(g, alto, conGuias) {
     var t = trazo(g);
     if (!t) return "";
     var c = caja(t.giro ? g.origen : g.cp);
     if (!c) return "";
     var pad = 60;
-    var w = (c.x2 - c.x1) + pad * 2, h = (c.y2 - c.y1) + pad * 2;
+    var x1 = c.x1, x2 = c.x2, guias = "";
+    if (conGuias && (g.tipo === "consonante" || g.tipo === "portador")) {
+      var m = margenesDe(g.cp);
+      if (m) {
+        var xIzq = c.x1 - m.lsb, xDer = c.x2 + m.rsb;
+        x1 = Math.min(x1, xIzq); x2 = Math.max(x2, xDer);
+        var y1g = c.y1 - 40, y2g = c.y2 + 40;
+        guias = '<line x1="' + xIzq + '" y1="' + y1g + '" x2="' + xIzq + '" y2="' + y2g + '" stroke="#B3541E" stroke-width="16" stroke-dasharray="34 22"/>' +
+          '<line x1="' + xDer + '" y1="' + y1g + '" x2="' + xDer + '" y2="' + y2g + '" stroke="#2F6B45" stroke-width="16" stroke-dasharray="34 22"/>';
+      }
+    }
+    var w = (x2 - x1) + pad * 2, h = (c.y2 - c.y1) + pad * 2;
     var giro = t.giro ? ' transform="rotate(180 ' + ((c.x1 + c.x2) / 2) + " " + ((c.y1 + c.y2) / 2) + ')"' : "";
-    return '<svg viewBox="' + (c.x1 - pad) + " " + (-(c.y2 + pad)) + " " + w + " " + h + '" style="height:' + alto + 'px" aria-hidden="true">' +
-      '<g transform="scale(1,-1)"><path' + giro + ' d="' + t.d + '"/></g></svg>';
+    return '<svg viewBox="' + (x1 - pad) + " " + (-(c.y2 + pad)) + " " + w + " " + h + '" style="height:' + alto + 'px" aria-hidden="true">' +
+      '<g transform="scale(1,-1)">' + guias + '<path' + giro + ' d="' + t.d + '"/></g></svg>';
+  }
+
+  /* ---------- deshacer e indicador de cambios ---------- */
+  var deshacer = [];
+  function registrar(entrada) {
+    deshacer.push(entrada);
+    if (deshacer.length > 60) deshacer.shift();
+    actualizarBotonDeshacer();
+  }
+  function actualizarBotonDeshacer() {
+    var b = document.getElementById("btn-deshacer");
+    if (!b) return;
+    b.disabled = !deshacer.length;
+    b.textContent = deshacer.length ? "Deshacer (" + deshacer.length + ")" : "Deshacer";
+  }
+  function aplicarDeshacer(e) {
+    if (e.tipo === "ancla") {
+      if (e.anterior == null) { if (anclas[e.cp]) delete anclas[e.cp][e.clave]; }
+      else fijarAncla(e.cp, e.clave, e.anterior);
+    } else if (e.tipo === "margen") {
+      if (e.anterior == null) { if (margenes[e.cp]) delete margenes[e.cp][e.campo]; }
+      else fijarMargen(e.cp, e.campo, e.anterior);
+    } else if (e.tipo === "union") {
+      if (!union[e.cp]) union[e.cp] = {};
+      if (e.anterior == null) delete union[e.cp][e.campo]; else union[e.cp][e.campo] = e.anterior;
+    }
+  }
+  function deshacerUltimo() {
+    var e = deshacer.pop();
+    if (!e) return;
+    if (e.tipo === "lote") { e.entradas.forEach(aplicarDeshacer); avisar("Deshecho el ajuste por lote"); }
+    else { aplicarDeshacer(e); avisar("Deshecho"); }
+    guardarAnclas(); guardarMargenes(); guardarUnion();
+    actualizarBotonDeshacer();
+    pintarPauta(); pintarFicha(); pintarConversor(); pintarCasillero();
+  }
+  function contarCambios() {
+    function entradas(o) { return Object.keys(o).reduce(function (n, k) { return n + Object.keys(o[k] || {}).length; }, 0); }
+    return entradas(anclas) + entradas(margenes) + entradas(union);
+  }
+  function actualizarContadorRespaldo() {
+    var el = document.getElementById("cambios-sin-respaldar");
+    if (!el) return;
+    var n = contarCambios();
+    el.textContent = n ? n + " cambio" + (n === 1 ? "" : "s") + " sin respaldar" : "";
   }
 
   /* ---------- pauta y unión ---------- */
@@ -1277,6 +1422,7 @@
   }
   function guardarMargenes() {
     try { localStorage.setItem("tabure.margenes.v1", JSON.stringify(margenes)); } catch (e) { /* nada */ }
+    actualizarContadorRespaldo();
   }
   /* Márgenes efectivos de un glifo: lo que hayas fijado a mano, si no lo natural
      del archivo (x1 de la mancha como LSB, ancho-x2 como RSB). */
@@ -1302,6 +1448,7 @@
   }
   function guardarAnclas() {
     try { localStorage.setItem("tabure.anclas.v1", JSON.stringify(anclas)); } catch (e) { /* nada */ }
+    actualizarContadorRespaldo();
   }
   /* Punto de anclaje efectivo: lo que hayas movido, si no lo que trae el archivo,
      si no la medida por defecto (centro de la mancha, 312 arriba / -413 abajo). */
@@ -1342,6 +1489,7 @@
   }
   function guardarUnion() {
     try { localStorage.setItem("tabure.union.v1", JSON.stringify(union)); } catch (e) { /* nada */ }
+    actualizarContadorRespaldo();
   }
   function puntosUnion(cp) {
     if (union[cp]) return union[cp];
@@ -1427,8 +1575,8 @@
       .concat([
         '<line class="hilo" x1="' + x1 + '" y1="' + arr[1] + '" x2="' + x2 + '" y2="' + arr[1] + '"/>',
         '<line class="hilo" x1="' + x1 + '" y1="' + aba[1] + '" x2="' + x2 + '" y2="' + aba[1] + '"/>',
-        '<circle class="tirador salida" data-tira="arriba" r="38" cx="' + arr[0] + '" cy="' + arr[1] + '"/>',
-        '<circle class="tirador entrada" data-tira="abajo" r="30" cx="' + aba[0] + '" cy="' + aba[1] + '"/>'
+        '<circle class="tirador ancla-arriba" data-tira="arriba" r="38" cx="' + arr[0] + '" cy="' + arr[1] + '"/>',
+        '<circle class="tirador ancla-abajo" data-tira="abajo" r="30" cx="' + aba[0] + '" cy="' + aba[1] + '"/>'
       ]);
     svg.innerHTML = '<g id="capa" transform="scale(1,-1)">' + todo.join("") + "</g>";
 
@@ -1502,9 +1650,16 @@
 
     document.getElementById("btn-restaurar").addEventListener("click", function () {
       if (pauta.modo === "anclas") {
+        var previas = anclas[pauta.a] ? JSON.parse(JSON.stringify(anclas[pauta.a])) : {};
+        var lote1 = Object.keys(previas).map(function (clave) { return { tipo: "ancla", cp: pauta.a, clave: clave, anterior: previas[clave] }; });
+        if (lote1.length) registrar({ tipo: "lote", entradas: lote1 });
         delete anclas[pauta.a]; guardarAnclas();
         avisar("Anclas de " + POR_CP[pauta.a].rom + " de vuelta a lo medido");
       } else {
+        var lote2 = [];
+        if (union[pauta.a] && union[pauta.a].salida) lote2.push({ tipo: "union", cp: pauta.a, campo: "salida", anterior: union[pauta.a].salida });
+        if (union[pauta.b] && union[pauta.b].entrada) lote2.push({ tipo: "union", cp: pauta.b, campo: "entrada", anterior: union[pauta.b].entrada });
+        if (lote2.length) registrar({ tipo: "lote", entradas: lote2 });
         delete union[pauta.a]; delete union[pauta.b]; guardarUnion();
         avisar("Puntos de unión de vuelta a lo medido");
       }
@@ -1534,23 +1689,68 @@
     });
     document.getElementById("btn-fea").addEventListener("click", exportarFea);
     document.getElementById("btn-metricas").addEventListener("click", exportarMetricas);
+    document.getElementById("btn-copiar-punto").addEventListener("click", function () {
+      copiar(document.getElementById("salto").textContent, "Coordenadas copiadas");
+    });
+    document.getElementById("btn-lote").addEventListener("click", function () {
+      var da = sano(document.getElementById("lote-arriba").value, -1000, 1000) || 0;
+      var db = sano(document.getElementById("lote-abajo").value, -1000, 1000) || 0;
+      if (!da && !db) { avisar("Pon un desplazamiento distinto de cero en Δ arriba o Δ abajo."); return; }
+      var lote = [];
+      INV.filter(function (g) { return (g.tipo === "consonante" || g.tipo === "portador") && TRAZOS[g.cp]; }).forEach(function (g) {
+        if (da) {
+          var anterior1 = (anclas[g.cp] && anclas[g.cp].arriba) ? anclas[g.cp].arriba.slice() : null;
+          var p1 = anclaBase(g.cp, "arriba").slice(); p1[1] += da;
+          fijarAncla(g.cp, "arriba", p1);
+          lote.push({ tipo: "ancla", cp: g.cp, clave: "arriba", anterior: anterior1 });
+        }
+        if (db) {
+          var anterior2 = (anclas[g.cp] && anclas[g.cp].abajo) ? anclas[g.cp].abajo.slice() : null;
+          var p2 = anclaBase(g.cp, "abajo").slice(); p2[1] += db;
+          fijarAncla(g.cp, "abajo", p2);
+          lote.push({ tipo: "ancla", cp: g.cp, clave: "abajo", anterior: anterior2 });
+        }
+      });
+      guardarAnclas();
+      registrar({ tipo: "lote", entradas: lote });
+      pintarPauta(); pintarCasillero(); pintarConversor();
+      avisar("Aplicado a " + lote.length + " anclas de " + INV.filter(function (g) { return (g.tipo === "consonante" || g.tipo === "portador") && TRAZOS[g.cp]; }).length + " bases");
+    });
 
-    [["ax-arriba", "arriba", 0], ["ay-arriba", "arriba", 1], ["ax-abajo", "abajo", 0], ["ay-abajo", "abajo", 1]].forEach(function (spec) {
+    var antesAncla = {};
+    [["ax-arriba", "arriba", 0, -3000, 4000], ["ay-arriba", "arriba", 1, -2000, 2000],
+     ["ax-abajo", "abajo", 0, -3000, 4000], ["ay-abajo", "abajo", 1, -2000, 2000]].forEach(function (spec) {
       var inp = document.getElementById(spec[0]);
-      inp.addEventListener("focus", function () { numerosEnEdicion = true; });
-      inp.addEventListener("blur", function () { numerosEnEdicion = false; });
+      inp.addEventListener("focus", function () {
+        numerosEnEdicion = true;
+        if (!(spec[1] in antesAncla)) {
+          antesAncla[spec[1]] = (anclas[pauta.a] && anclas[pauta.a][spec[1]]) ? anclas[pauta.a][spec[1]].slice() : null;
+        }
+      });
+      inp.addEventListener("blur", function () {
+        numerosEnEdicion = false;
+        var actual = (anclas[pauta.a] && anclas[pauta.a][spec[1]]) ? anclas[pauta.a][spec[1]] : null;
+        if (JSON.stringify(actual) !== JSON.stringify(antesAncla[spec[1]])) {
+          registrar({ tipo: "ancla", cp: pauta.a, clave: spec[1], anterior: antesAncla[spec[1]] });
+        }
+        delete antesAncla[spec[1]];
+      });
       inp.addEventListener("input", function () {
-        if (pauta.modo !== "anclas" || inp.value === "") return;
+        if (pauta.modo !== "anclas") return;
+        var v = sano(inp.value, spec[3], spec[4]);
+        if (v == null) return;
         var actual = anclaBase(pauta.a, spec[1]).slice();
-        actual[spec[2]] = Math.round(+inp.value);
+        actual[spec[2]] = v;
         fijarAncla(pauta.a, spec[1], actual);
         guardarAnclas();
         pintarPauta(); pintarConversor();
       });
     });
 
-    // arrastre de los tiradores
-    var svg = document.getElementById("lienzo"), arrastrando = null;
+    // arrastre de los tiradores, con nudge por teclado sobre el último tocado
+    var svg = document.getElementById("lienzo"), arrastrando = null, anteroGesto = null;
+    svg.setAttribute("tabindex", "0");
+    var activo = null;   // {clase} en modo anclas; {lado} ("a"/"b") en modo unión
     function aUnidades(ev) {
       var capa = document.getElementById("capa");
       var p = svg.createSVGPoint();
@@ -1562,7 +1762,17 @@
       var t = ev.target.closest(".tirador");
       if (!t) return;
       arrastrando = t.getAttribute("data-tira");
+      if (arrastrando === "arriba" || arrastrando === "abajo") {
+        anteroGesto = (anclas[pauta.a] && anclas[pauta.a][arrastrando]) ? anclas[pauta.a][arrastrando].slice() : null;
+        activo = { modo: "anclas", clase: arrastrando };
+      } else {
+        var cp = arrastrando === "a" ? pauta.a : pauta.b;
+        var campo = arrastrando === "a" ? "salida" : "entrada";
+        anteroGesto = (union[cp] && union[cp][campo]) ? union[cp][campo].slice() : null;
+        activo = { modo: "union", lado: arrastrando };
+      }
       svg.setPointerCapture(ev.pointerId);
+      svg.focus();   // preventDefault más abajo evita el foco implícito del clic; lo forzamos
       ev.preventDefault();
     });
     svg.addEventListener("pointermove", function (ev) {
@@ -1587,10 +1797,69 @@
     });
     svg.addEventListener("pointerup", function () {
       if (!arrastrando) return;
-      if (arrastrando === "arriba" || arrastrando === "abajo") { guardarAnclas(); pintarConversor(); }
-      else { guardarUnion(); }
+      if (arrastrando === "arriba" || arrastrando === "abajo") {
+        var actual = (anclas[pauta.a] && anclas[pauta.a][arrastrando]) ? anclas[pauta.a][arrastrando] : null;
+        if (JSON.stringify(actual) !== JSON.stringify(anteroGesto)) {
+          registrar({ tipo: "ancla", cp: pauta.a, clave: arrastrando, anterior: anteroGesto });
+        }
+        guardarAnclas(); pintarConversor();
+      } else {
+        var cp = arrastrando === "a" ? pauta.a : pauta.b, campo = arrastrando === "a" ? "salida" : "entrada";
+        var act2 = (union[cp] && union[cp][campo]) ? union[cp][campo] : null;
+        if (JSON.stringify(act2) !== JSON.stringify(anteroGesto)) {
+          registrar({ tipo: "union", cp: cp, campo: campo, anterior: anteroGesto });
+        }
+        guardarUnion();
+      }
       arrastrando = null;
     });
+    // nudge por teclado: flechas mueven 1 unidad, Shift+flecha 10, sobre el último tirador tocado.
+    // Varias flechas seguidas cuentan como un solo paso de deshacer, igual que un arrastre.
+    var rafagaClave = null, rafagaAntes = null, rafagaTimer = null;
+    svg.addEventListener("keydown", function (ev) {
+      if (!activo) return;
+      var d = { ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[ev.key];
+      if (!d) return;
+      ev.preventDefault();
+      var paso = ev.shiftKey ? 10 : 1;
+      var claveActual = JSON.stringify(activo);
+      if (rafagaClave !== claveActual) {
+        if (rafagaTimer) { clearTimeout(rafagaTimer); confirmarRafaga(); }
+        rafagaClave = claveActual;
+        rafagaAntes = activo.modo === "anclas"
+          ? ((anclas[pauta.a] && anclas[pauta.a][activo.clase]) ? anclas[pauta.a][activo.clase].slice() : null)
+          : (function () { var cp = activo.lado === "a" ? pauta.a : pauta.b, campo = activo.lado === "a" ? "salida" : "entrada";
+              return (union[cp] && union[cp][campo]) ? union[cp][campo].slice() : null; })();
+      }
+      if (activo.modo === "anclas") {
+        var p1 = anclaBase(pauta.a, activo.clase).slice();
+        p1[0] += d[0] * paso; p1[1] += d[1] * paso;
+        fijarAncla(pauta.a, activo.clase, p1);
+        guardarAnclas(); pintarPauta(); pintarConversor();
+      } else {
+        var cp = activo.lado === "a" ? pauta.a : pauta.b, campo = activo.lado === "a" ? "salida" : "entrada";
+        var p2 = puntosUnion(cp)[campo].slice();
+        p2[0] += d[0] * paso; p2[1] += d[1] * paso;
+        union[cp][campo] = p2;
+        guardarUnion(); pintarPauta();
+      }
+      clearTimeout(rafagaTimer);
+      rafagaTimer = setTimeout(confirmarRafaga, 700);
+    });
+    function confirmarRafaga() {
+      if (!rafagaClave) return;
+      var act = JSON.parse(rafagaClave);
+      if (act.modo === "anclas") {
+        var actual = (anclas[pauta.a] && anclas[pauta.a][act.clase]) ? anclas[pauta.a][act.clase] : null;
+        if (JSON.stringify(actual) !== JSON.stringify(rafagaAntes)) registrar({ tipo: "ancla", cp: pauta.a, clave: act.clase, anterior: rafagaAntes });
+      } else {
+        var cp = act.lado === "a" ? pauta.a : pauta.b, campo = act.lado === "a" ? "salida" : "entrada";
+        var actual2 = (union[cp] && union[cp][campo]) ? union[cp][campo] : null;
+        if (JSON.stringify(actual2) !== JSON.stringify(rafagaAntes)) registrar({ tipo: "union", cp: cp, campo: campo, anterior: rafagaAntes });
+      }
+      rafagaClave = null; rafagaAntes = null; rafagaTimer = null;
+    }
+    document.getElementById("btn-deshacer").addEventListener("click", deshacerUltimo);
     pintarPauta();
   }
 
@@ -1698,5 +1967,7 @@
   pintarTodo();
   pintarConversor();
   montarPauta();
+  actualizarContadorRespaldo();
+  actualizarBotonDeshacer();
 })();
 </script>
