@@ -251,7 +251,8 @@
       <button class="btn" id="btn-fuente">Cargar fuente</button>
       <input type="file" id="file-fuente" accept=".ttf,.otf,.woff,.woff2" hidden>
       <button class="btn" id="btn-csv">Exportar CSV</button>
-      <button class="btn silencio" id="btn-json">Respaldo</button>
+      <button class="btn silencio" id="btn-json">Descargar respaldo</button>
+      <button class="btn silencio" id="btn-json-importar">Importar respaldo</button>
       <input type="file" id="file-json" accept="application/json" hidden>
     </div>
   </header>
@@ -412,7 +413,7 @@
     </div>
   </details>
 
-  <p class="apunte">El avance manual se guarda en este navegador. La auditoría se recalcula cada vez que cargas un <code>.sfd</code>; la fuente cargada solo vive mientras la pestaña esté abierta.</p>
+  <p class="apunte">El avance, las anclas movidas a mano, los márgenes y los puntos de unión se guardan en este navegador — descarga el respaldo antes de cambiar de equipo o de borrar datos de navegación, porque no viven en ningún otro archivo. La auditoría se recalcula cada vez que cargas un <code>.sfd</code>; la fuente cargada solo vive mientras la pestaña esté abierta.</p>
 </div>
 
 <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
@@ -1147,18 +1148,33 @@
     descargar("tabure-shitaku-glifos.csv", "﻿" + csv, "text/csv;charset=utf-8");
     avisar("CSV descargado");
   });
+  /* El respaldo cubre las cuatro cosas que se guardan en este navegador:
+     avance por glifo, puntos de unión, anclas movidas a mano y márgenes.
+     Sin esto, borrar el almacenamiento del navegador perdía silenciosamente
+     todo el trabajo de anclas y márgenes, que no vive en ningún otro archivo. */
   document.getElementById("btn-json").addEventListener("click", function () {
-    descargar("tabure-shitaku-avance.json", JSON.stringify(manual, null, 2), "application/json");
-    avisar("Respaldo descargado");
+    var paquete = { version: 1, avance: manual, union: union, anclas: anclas, margenes: margenes };
+    descargar("tabure-shitaku-respaldo.json", JSON.stringify(paquete, null, 2), "application/json");
+    avisar("Respaldo descargado (avance, uniones, anclas y márgenes)");
   });
-  document.getElementById("btn-json").addEventListener("dblclick", function () { document.getElementById("file-json").click(); });
+  document.getElementById("btn-json-importar").addEventListener("click", function () { document.getElementById("file-json").click(); });
   document.getElementById("file-json").addEventListener("change", function (ev) {
     var f = ev.target.files[0];
     if (!f) return;
     var l = new FileReader();
     l.onload = function () {
-      try { manual = JSON.parse(l.result) || {}; guardar(); pintarTodo(); avisar("Avance importado"); }
-      catch (e) { avisar("Ese archivo no es un respaldo de avance."); }
+      try {
+        var p = JSON.parse(l.result);
+        if (!p || typeof p !== "object") throw new Error("formato");
+        if (p.version === 1) {
+          manual = p.avance || {}; union = p.union || {}; anclas = p.anclas || {}; margenes = p.margenes || {};
+        } else {
+          manual = p;   // respaldo antiguo: solo traía el avance
+        }
+        guardar(); guardarUnion(); guardarAnclas(); guardarMargenes();
+        pintarTodo(); pintarPauta();
+        avisar("Respaldo importado");
+      } catch (e) { avisar("Ese archivo no es un respaldo de esta app."); }
       ev.target.value = "";
     };
     l.readAsText(f);
