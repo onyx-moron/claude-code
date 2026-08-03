@@ -162,6 +162,7 @@
   .leyenda-union i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; border: 2px solid; }
 
   #mandos[data-modo="anclas"] .solo-union, #mandos[data-modo="union"] .solo-anclas { display: none; }
+  .bloque-lote { border-top: 1px solid var(--linea); padding-top: 11px; display: flex; flex-direction: column; gap: 8px; }
 
   /* casillero */
   .consola { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 22px; align-items: start; }
@@ -169,8 +170,11 @@
   .casillero > header, .ficha > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
   .casillero, .ficha { background: var(--sup); border: 1px solid var(--linea); border-radius: var(--r); box-shadow: var(--sombra); }
   .filtros { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 11px 15px; border-bottom: 1px solid var(--linea); background: var(--sup2); }
-  @media (max-width: 560px) { .filtros { grid-template-columns: 1fr; } }
-  .marcar { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--tinta-s); white-space: nowrap; }
+  .filtros.filtros-anchos { grid-template-columns: 1fr auto auto; }
+  @media (max-width: 560px) { .filtros, .filtros.filtros-anchos { grid-template-columns: 1fr; } }
+  .marcar { display: flex; align-items: flex-start; gap: 7px; font-size: 13px; color: var(--tinta-s); }
+  .marcar input { flex: none; margin-top: 3px; }
+  .marcar.corto { white-space: nowrap; align-items: center; }
 
   .cuerpo-casillero { padding: 2px 15px 16px; max-height: 660px; overflow-y: auto; }
   .grupo { padding-top: 14px; }
@@ -329,7 +333,7 @@
         <label class="mando"><span>Ángulo de la pauta <b id="v-angulo">44°</b></span><input type="range" id="angulo" min="0" max="90" value="44"></label>
         <label class="mando"><span>Separación de la pauta <b id="v-sep">300</b></span><input type="range" id="sep" min="120" max="700" step="20" value="300"></label>
         <label class="mando solo-union"><span>Holgura del enlace <b id="v-holgura">0</b></span><input type="range" id="holgura" min="-250" max="400" step="10" value="0"></label>
-        <label class="marcar"><input type="checkbox" id="ver-pauta" checked> Ver pauta diagonal</label>
+        <label class="marcar corto"><input type="checkbox" id="ver-pauta" checked> Ver pauta diagonal</label>
         <div class="medida"><span>Eje de la letra</span><b id="eje-a">—</b></div>
         <div class="medida solo-union"><span>Eje de la segunda</span><b id="eje-b">—</b></div>
         <div class="medida"><span id="rot-puntos">Puntos</span><b id="salto">—</b><button class="btn" id="btn-copiar-punto" style="padding:2px 8px;font-size:11.5px">Copiar</button></div>
@@ -358,7 +362,7 @@
         <div class="fila">
           <button class="btn" id="btn-deshacer" disabled>Deshacer</button>
         </div>
-        <div class="solo-anclas" style="border-top:1px solid var(--linea);padding-top:11px;display:flex;flex-direction:column;gap:8px">
+        <div class="solo-anclas bloque-lote">
           <span class="et" style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-f)">Mover todas las bases</span>
           <div class="dupla">
             <label class="campo-num"><span>Δ arriba (Y)</span><input type="number" id="lote-arriba" value="0"></label>
@@ -376,7 +380,7 @@
         <h2 class="tit">Casillero</h2>
         <span class="apunte" id="conteo"></span>
       </header>
-      <div class="filtros" style="grid-template-columns:1fr auto auto">
+      <div class="filtros filtros-anchos">
         <input type="text" id="f-texto" placeholder="Buscar por letra o U+código…" aria-label="Buscar signo">
         <button class="btn" id="btn-pendiente">Siguiente pendiente</button>
         <select id="f-estado" aria-label="Filtrar">
@@ -387,7 +391,7 @@
           <option value="ausente">Ausentes del archivo</option>
           <option value="listo">Terminados</option>
         </select>
-        <label class="marcar" style="grid-column:1 / -1"><input type="checkbox" id="f-nota"> Solo con nota</label>
+        <label class="marcar corto" style="grid-column:1 / -1"><input type="checkbox" id="f-nota"> Solo con nota</label>
       </div>
       <div class="cuerpo-casillero" id="rejillas"></div>
     </section>
