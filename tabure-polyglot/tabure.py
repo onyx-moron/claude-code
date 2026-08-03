@@ -163,26 +163,72 @@ def valor_clase(lex, nombre):
     return (lex.get("classes") or {}).get(nombre, "")
 
 
+def filtros_de(regla):
+    """Lista de filtros {clase, valor} de una regla.
+
+    Compatible con el formato viejo (claseFiltro/valorFiltro, un solo par) y
+    con el nuevo (filtros: [{clase, valor}, ...]), que permite varias clases
+    a la vez, tal como lo documenta el manual de PolyGlot: todos los valores
+    marcados deben cumplirse para que la regla se aplique.
+    """
+    filtros = [f for f in (regla.get("filtros") or [])
+               if f.get("clase") and f.get("valor")]
+    if filtros:
+        return filtros
+    if regla.get("claseFiltro") and regla.get("valorFiltro"):
+        return [{"clase": regla["claseFiltro"], "valor": regla["valorFiltro"]}]
+    return []
+
+
 def lexemas_de(paquete, regla):
     """Palabras a las que alcanza una regla: por categoría y por clase léxica."""
     lista = paquete["lexicon"]
     pos = (regla.get("pos") or "").strip().lower()
     if pos:
         lista = [w for w in lista if (w.get("pos") or "").strip().lower() == pos]
-    clase, valor = regla.get("claseFiltro"), regla.get("valorFiltro")
-    if clase and valor:
-        lista = [w for w in lista if valor_clase(w, clase) == valor]
+    for f in filtros_de(regla):
+        lista = [w for w in lista if valor_clase(w, f["clase"]) == f["valor"]]
     return lista
 
 
+def _agrupar_por_pgGrupo(reglas):
+    """Agrupa filas consecutivas que comparten pgGrupo: son transformaciones
+    de la MISMA regla de PolyGlot, aplicadas en cadena (la salida de una es
+    la entrada de la siguiente), no reglas independientes entre sí."""
+    grupos, clave_de = [], {}
+    for r in reglas:
+        clave = r.get("pgGrupo")
+        if clave and clave in clave_de:
+            grupos[clave_de[clave]].append(r)
+        else:
+            grupos.append([r])
+            if clave:
+                clave_de[clave] = len(grupos) - 1
+    return grupos
+
+
+def aplicar_cadena(cadena, entrada):
+    """Aplica una cadena de transformaciones en orden, cada una sobre el
+    resultado de la anterior — el comportamiento real de PolyGlot para una
+    regla con varios decGenTrans."""
+    actual = entrada
+    for r in cadena:
+        ok, res = aplicar_regla(r, actual)
+        if not ok:
+            return False, res
+        actual = res
+    return True, actual
+
+
 def ensayar(paquete, limite=4):
-    """Aplica cada regla a su léxico real y la clasifica."""
+    """Aplica cada regla (o cadena de transformaciones) a su léxico real y la clasifica."""
     salida = []
-    for r in paquete["rules"]:
-        candidatos = lexemas_de(paquete, r)
+    for cadena in _agrupar_por_pgGrupo(paquete["rules"]):
+        cab = cadena[0]
+        candidatos = lexemas_de(paquete, cab)
         error, muestras, afectadas = None, [], 0
         for w in candidatos:
-            ok, res = aplicar_regla(r, w.get("headword") or "")
+            ok, res = aplicar_cadena(cadena, w.get("headword") or "")
             if not ok:
                 error = res
                 break
@@ -193,9 +239,11 @@ def ensayar(paquete, limite=4):
         estado = ("error" if error else
                   "sin-lexico" if not candidatos else
                   "inerte" if afectadas == 0 else "activa")
-        salida.append({"regla": r, "estado": estado, "error": error,
+        etiqueta = re.sub(r"\s*\(\d+\)$", "", cab.get("label") or "") if len(cadena) > 1 else cab.get("label")
+        regla = dict(cab, label=etiqueta) if len(cadena) > 1 else cab
+        salida.append({"regla": regla, "estado": estado, "error": error,
                        "muestras": muestras, "afectadas": afectadas,
-                       "candidatos": len(candidatos)})
+                       "candidatos": len(candidatos), "cadena": cadena})
     return salida
 
 
@@ -322,6 +370,51 @@ def revisar(paquete, ignorar=IGNORAR_POR_DEFECTO):
         if not p.get("notes"):
             h.append(Hallazgo(AVISO, "pos", "La categoría «%s» no tiene descripción" % nombre))
 
+    # ---- Chequeos calcados del "Check Language Tool" de PolyGlot ----------
+    # Respetan la marca de excepción por palabra (wordRuleOverride) y, para la
+    # unicidad, la config de Language Properties si está declarada.
+    lang_props = paquete.get("langProps") or {}
+    for p in pos:
+        patron = (p.get("pattern") or "").strip()
+        if not patron:
+            continue
+        try:
+            re_patron = re.compile(patron)
+        except re.error as exc:
+            h.append(Hallazgo(ERROR, "pos", "El patrón de «%s» no compila: %s" % (p.get("name"), exc)))
+            continue
+        for w in lex:
+            if (w.get("pos") or "").strip() != (p.get("name") or "").strip() or w.get("excepcion"):
+                continue
+            if not re_patron.search(w.get("headword") or ""):
+                h.append(Hallazgo(ERROR, "pos",
+                                  "«%s» (%s) no coincide con el patrón de su categoría (%s)"
+                                  % (w.get("headword"), p.get("name"), patron)))
+    for p in pos:
+        nombre = (p.get("name") or "").strip()
+        exige_def, exige_pron = p.get("defMandatory"), p.get("pronMandatory")
+        if not exige_def and not exige_pron:
+            continue
+        for w in lex:
+            if (w.get("pos") or "").strip() != nombre or w.get("excepcion"):
+                continue
+            if exige_def and not (w.get("definicion") or w.get("gloss") or "").strip():
+                h.append(Hallazgo(ERROR, "pos", "«%s» (%s) exige definición y «%s» no tiene"
+                                  % (nombre, "definición obligatoria", w.get("headword"))))
+            if exige_pron and not (w.get("ipa") or "").strip():
+                h.append(Hallazgo(ERROR, "pos", "«%s» (%s) exige pronunciación y «%s» no tiene"
+                                  % (nombre, "pronunciación obligatoria", w.get("headword"))))
+    if lang_props.get("wordUniqueness"):
+        vistas = {}
+        for w in lex:
+            hw = (w.get("headword") or "").strip()
+            clave = hw.lower() if lang_props.get("ignoreCase") else hw
+            if not clave or w.get("excepcion"):
+                continue
+            if clave in vistas:
+                h.append(Hallazgo(ERROR, "pos", "Palabra duplicada «%s» (unicidad activada en Language Properties)" % hw))
+            vistas[clave] = True
+
     # ---- Clases léxicas ---------------------------------------------------
     for cl in paquete["classes"]:
         nombre, valores = cl.get("name") or "", cl.get("values") or []
@@ -361,13 +454,14 @@ def revisar(paquete, ignorar=IGNORAR_POR_DEFECTO):
         if p and p not in declaradas:
             h.append(Hallazgo(ERROR, "conjugación",
                               "«%s» apunta a la categoría «%s», no declarada" % (etiqueta, p)))
-        clase, valor = r.get("claseFiltro"), r.get("valorFiltro")
-        if clase and clase not in nombres_clase:
-            h.append(Hallazgo(ERROR, "conjugación",
-                              "«%s» filtra por la clase «%s», que no existe" % (etiqueta, clase)))
-        elif clase and valor and valor not in nombres_clase[clase]:
-            h.append(Hallazgo(ERROR, "conjugación",
-                              "«%s» filtra por «%s = %s», valor inexistente" % (etiqueta, clase, valor)))
+        for f in filtros_de(r):
+            clase, valor = f["clase"], f["valor"]
+            if clase not in nombres_clase:
+                h.append(Hallazgo(ERROR, "conjugación",
+                                  "«%s» filtra por la clase «%s», que no existe" % (etiqueta, clase)))
+            elif valor not in nombres_clase[clase]:
+                h.append(Hallazgo(ERROR, "conjugación",
+                                  "«%s» filtra por «%s = %s», valor inexistente" % (etiqueta, clase, valor)))
         if p and not (r.get("dimension") or "").strip():
             h.append(Hallazgo(AVISO, "conjugación",
                               "«%s» no declara \"dimension\": al inyectar se busca la casilla "
@@ -481,6 +575,9 @@ def extraer(ruta_pgd):
         nombre_pos[pid] = nombre
         entrada = {"name": nombre, "dims": [],
                    "notes": _texto_plano(_hijo(nodo, "partOfSpeechNotes")),
+                   "pattern": _hijo(nodo, "partOfSpeechPattern"),
+                   "defMandatory": _hijo(nodo, "definitionMandatoryPartOfSpeech") == "T",
+                   "pronMandatory": _hijo(nodo, "pronunciationMandatoryPartOfSpeech") == "T",
                    "status": "verified"}
         por_id[pid] = entrada
         paquete["pos"].append(entrada)
@@ -529,7 +626,9 @@ def extraer(ruta_pgd):
             "headword": palabra, "ipa": _sin_barras(_hijo(nodo, "pronunciation")),
             "roman": "", "pos": nombre_pos.get(_hijo(nodo, "wordPosId"), ""),
             "gloss": _hijo(nodo, "localWord"),
+            "definicion": _texto_plano(_hijo(nodo, "definition")),
             "etymology": _texto_plano(_hijo(nodo, "wordEtymologyNotes")),
+            "excepcion": _hijo(nodo, "wordRuleOverride") == "T",
             "status": "verified"})
 
     # Reglas, con su enlace a la casilla y el nombre de la dimensión
@@ -668,9 +767,9 @@ def inyectar(ruta_pgd, paquete, destino, secciones, fuente="Charis SIL"):
             _sub(nodo, "partOfSpeechName", nombre)
             _sub(nodo, "partOfSpeechNotes", _html(p.get("notes"), fuente))
             _sub(nodo, "partOfSpeechGloss")
-            _sub(nodo, "partOfSpeechPattern")
-            _sub(nodo, "definitionMandatoryPartOfSpeech", "F")
-            _sub(nodo, "pronunciationMandatoryPartOfSpeech", "F")
+            _sub(nodo, "partOfSpeechPattern", p.get("pattern") or "")
+            _sub(nodo, "definitionMandatoryPartOfSpeech", "T" if p.get("defMandatory") else "F")
+            _sub(nodo, "pronunciationMandatoryPartOfSpeech", "T" if p.get("pronMandatory") else "F")
             informe["pos"] += 1
 
     mapa_pos = {}
@@ -725,11 +824,11 @@ def inyectar(ruta_pgd, paquete, destino, secciones, fuente="Charis SIL"):
             _sub(nodo, "localWord", w.get("gloss"))
             _sub(nodo, "wordPosId", pid)
             _sub(nodo, "pronunciation", w.get("ipa"))
-            _sub(nodo, "definition", _html(w.get("gloss"), fuente))
+            _sub(nodo, "definition", _html(w.get("definicion") or w.get("gloss"), fuente))
             _sub(nodo, "wordEtymologyNotes", _html(w.get("etymology"), fuente))
             _sub(nodo, "autoDeclOverride", "F")
             _sub(nodo, "wordProcOverride", "F")
-            _sub(nodo, "wordRuleOverride", "F")
+            _sub(nodo, "wordRuleOverride", "T" if w.get("excepcion") else "F")
             _sub(nodo, "wordClassCollection")
             _sub(nodo, "wordClassTextValueCollection")
             informe["lexicon"] += 1
@@ -901,7 +1000,7 @@ def cmd_probar(args):
     resultados = ensayar(paquete, args.muestras)
     cuenta = {"activa": 0, "inerte": 0, "error": 0, "sin-lexico": 0}
     print(negrita("\nEnsayo de %d regla(s) contra %d lexema(s)\n"
-                  % (len(paquete["rules"]), len(paquete["lexicon"]))))
+                  % (len(resultados), len(paquete["lexicon"]))))
     for x in resultados:
         cuenta[x["estado"]] += 1
         if args.solo and x["estado"] != args.solo:
@@ -910,10 +1009,14 @@ def cmd_probar(args):
         linea = "  %s  %s" % (color("%-11s" % x["estado"]), x["regla"].get("label"))
         if x["regla"].get("pos"):
             linea += gris(" · " + x["regla"]["pos"])
-        if x["regla"].get("claseFiltro"):
-            linea += gris(" [%s = %s]" % (x["regla"]["claseFiltro"], x["regla"].get("valorFiltro")))
+        for f in filtros_de(x["regla"]):
+            linea += gris(" [%s = %s]" % (f["clase"], f["valor"]))
         print(linea)
-        print(gris("      /%s/ → \"%s\"" % (x["regla"].get("find"), x["regla"].get("replace"))))
+        if len(x["cadena"]) > 1:
+            for i, paso in enumerate(x["cadena"], start=1):
+                print(gris("      %d. /%s/ → \"%s\"" % (i, paso.get("find"), paso.get("replace"))))
+        else:
+            print(gris("      /%s/ → \"%s\"" % (x["regla"].get("find"), x["regla"].get("replace"))))
         if x["error"]:
             print("      " + rojo(x["error"]))
         elif x["estado"] == "inerte":

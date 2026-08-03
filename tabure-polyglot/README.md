@@ -58,8 +58,17 @@ El apóstrofe se ignora: es marca de límite morfológico, no un fonema.
 **Categorías y clases** — categorías usadas sin declarar, categorías sin descripción,
 clases que apuntan a categorías inexistentes, palabras en alcance sin valor asignado.
 
+**Check Language Tool** (calcado del que trae PolyGlot) — palabras que no coinciden con
+el patrón de forma de su categoría (`pos[].pattern`), palabras sin definición o sin
+pronunciación cuando su categoría las exige (`pos[].defMandatory` /
+`pronMandatory`), y palabras duplicadas si `langProps.wordUniqueness` está activado.
+Una palabra marcada `"excepcion": true` (el Override Lexical Rules de PolyGlot) queda
+fuera de estos tres chequeos.
+
 **Conjugación** — regex que no compila, casos de prueba que fallan, reglas sin anclar,
-filtros de clase que no existen, y el uso de `\1` donde PolyGlot espera `$1`.
+filtros de clase que no existen (ahora una regla puede traer varios a la vez, en
+`filtros: [{clase, valor}, …]`; deben cumplirse todos), y el uso de `\1` donde PolyGlot
+espera `$1`.
 
 ### probar
 
@@ -69,7 +78,14 @@ python3 tabure.py probar --paquete ~/Tabure/paquete.json --solo inerte
 
 Clasifica cada regla en **activa** (modifica palabras), **inerte** (no cambia ninguna,
 casi siempre síntoma de un patrón mal escrito), **error** y **sin léxico**. Respeta el
-filtro de clase léxica de cada regla.
+filtro de clase léxica de cada regla (ahora pueden ser varios a la vez).
+
+Cuando una regla de PolyGlot tiene **varias transformaciones encadenadas** (un mismo
+`decGenRule` con más de un `decGenTrans`), `extraer` las trae como filas separadas que
+comparten `pgGrupo`. `probar` las vuelve a unir y las aplica **en cadena** — la salida
+de la primera es la entrada de la segunda, tal como lo hace PolyGlot — en vez de
+probar cada una aislada contra la palabra base, que daría un resultado distinto al
+real. El cuaderno hace lo mismo al ensayar.
 
 ### inyectar
 
@@ -99,8 +115,27 @@ Lo que la escritura resuelve por ti:
 - **Los fonemas recuperan sus barras** (`tʃ` → `/tʃ/`), que es como PolyGlot los guarda.
 - **Las transformaciones se reagrupan** en la regla original de la que salieron.
 
+También escribe, con etiquetas ya verificadas contra el archivo real:
+
+- **El patrón de forma y la obligatoriedad de definición/pronunciación** de cada
+  categoría (`partOfSpeechPattern`, `definitionMandatoryPartOfSpeech`,
+  `pronunciationMandatoryPartOfSpeech`).
+- **La excepción a las reglas** de una palabra (`wordRuleOverride`), si el paquete la
+  trae marcada con `"excepcion": true`.
+- **La definición libre** de una palabra, por separado de su glosa: `gloss` va a
+  `localWord` y `definicion` a `definition`. Antes se escribía el mismo valor en las
+  dos, así que cualquier definición larga que hubieras escrito directo en PolyGlot se
+  perdía en la siguiente inyección — ya no.
+
 Las **clases léxicas no se escriben**: ese contenedor está vacío en el archivo de
-referencia y su estructura interna no es conocida. Créalas a mano en PolyGlot.
+referencia y su estructura interna no es conocida. Créalas a mano en PolyGlot. El
+cuaderno sí modela sus tres tipos reales (cerrada, texto libre y asociativa) para
+cuando llegue el momento de verificarlo.
+
+Las **Language Properties** (`langProps` en el paquete: nombre, idioma local, autor,
+orden alfabético, kerning y los checkboxes de unicidad/obligatoriedad/RTL) tampoco se
+escriben todavía — sus etiquetas XML no están verificadas. `revisar` sí las lee para
+decidir si aplica el chequeo de unicidad de palabra.
 
 ### inspeccionar
 
