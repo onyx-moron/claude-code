@@ -1,0 +1,34 @@
+{
+  "_procedencia": "Tabla 2.1 de Tabure'shi — Gramática descriptiva v1.1, §2.2.1 «Principio organizador»",
+  "_estatuto": "CANON",
+  "_verificado_contra": "inventario fonológico extraído del .pgd real (44 grafemas)",
+  "_nota": "Los 34 consonantes de los 11 grupos más las 10 vocales asignadas agotan exactamente el inventario: sin huecos, sin sobras, sin repeticiones. Verificable con verificar_escritura.py.",
+  "sistema": "Madera",
+  "nombre_nativo": "šitakü",
+  "posicion_heptagonal": 1,
+  "criterio": "sonoridad creciente, de la consonante más «dura» a la más «suave»",
+  "direccion_lectura": "izquierda a derecha",
+  "direccion_escritura": "vertical de abajo hacia arriba (implementación tipográfica actual: horizontal)",
+  "vocal_como": "diacrítico sobre o bajo el trazo consonántico; la posición codifica secuencia y la vocal previa se gira 180°",
+  "grupos": [
+    {"n": 1,  "nombre": "Velares",      "consonantes": ["c", "k", "q̂"],        "vocal": "u"},
+    {"n": 2,  "nombre": "Africadas",    "consonantes": ["č", "ʦ", "ṭ"],        "vocal": "o"},
+    {"n": 3,  "nombre": "Duras",        "consonantes": ["p", "t", "x"],         "vocal": "ã"},
+    {"n": 4,  "nombre": "Silbantes",    "consonantes": ["š", "s", "z"],         "vocal": "a"},
+    {"n": 5,  "nombre": "Sonoras",      "consonantes": ["b", "g", "ǧ"],        "vocal": "è"},
+    {"n": 6,  "nombre": "Zumbantes",    "consonantes": ["d", "ž", "v"],        "vocal": "ø"},
+    {"n": 7,  "nombre": "Alientos",     "consonantes": ["h", "ĵ", "j"],        "vocal": "e"},
+    {"n": 8,  "nombre": "Suaves",       "consonantes": ["f", "y", "v̌"],        "vocal": "î"},
+    {"n": 9,  "nombre": "Nasales",      "consonantes": ["m", "n", "ñ", "ŋ"],   "vocal": "ü"},
+    {"n": 10, "nombre": "Líquidas",     "consonantes": ["r̂", "r", "l", "ř"],   "vocal": "i"},
+    {"n": 11, "nombre": "Aproximantes", "consonantes": ["w", "ẙ"],              "vocal": null,
+     "portador_nulo": "Ø",
+     "nota": "El portador nulo es el tercer miembro del grupo. No es un fonema: es un trazo consonántico vacío que ancla la vocal cuando dos vocales se suceden o cuando la palabra arranca por vocal."}
+  ],
+  "reservados": {
+    "puntuacion": ["'", "“", ",", "."],
+    "diferenciador_grafico": "◌̯",
+    "nota": "Cinco símbolos reservados a puntuación y usos especiales; el diferenciador desambigua pares de grafemas visualmente próximos."
+  },
+  "consecuencia_morfologica": "La correspondencia grupo→vocal, fijada con propósito gráfico, es el esqueleto del paradigma verbal: los sufijos de Tiempo, Modo, Voz, Aspecto y Evidencialidad (§7.2–§7.6) toman una consonante de un grupo y la vocal propia de ese grupo."
+}
