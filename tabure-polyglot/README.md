@@ -214,3 +214,25 @@ sobrante todo lo demás, incluidos los `.pgd` marcados `(inyectado)` o
 Copia versionada del contenido de la lengua: fonología, categorías, clases, léxico,
 reglas y las secciones de la gramática. Es el mismo paquete que viene incluido en el
 cuaderno, y sirve de respaldo con historial.
+
+## Sistemas de escritura
+
+Los tres sistemas de tabure'shi —Madera (šitakü), Tierra (kapoṭa) y Agua (woʦaši)—
+son alfabetos alternativos para la misma lengua (§2.1), así que cada uno debe cubrir
+el inventario fonológico entero. `verificar_escritura.py` comprueba exactamente eso:
+
+```bash
+python3 verificar_escritura.py --sistema datos/silabario-madera.json \
+                               --paquete datos/tabureshi.json
+```
+
+Detecta las tres formas de fallo —un grafema en dos grupos, un signo sin grafema, y
+un grafema que ningún grupo recoge— y sale con código 1 si encuentra alguna.
+
+`datos/silabario-madera.json` es la Tabla 2.1 de la gramática (§2.2.1) en forma
+legible por máquina: los 11 grupos consonánticos con su vocal asociada y el portador
+nulo. Contrastada contra el `.pgd`, cubre **44 de 44 grafemas sin huecos ni sobras**.
+
+Para describir Tierra, Agua o un sistema nuevo, basta seguir ese mismo formato y
+pasarlo por la herramienta. `entregas/` guarda el traspaso con el detalle y las
+cuestiones abiertas.
